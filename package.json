@@ -6,21 +6,45 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "drizzle-kit generate",
+    "screens": "node scripts/screens.mjs",
+    "axe": "node scripts/axe.mjs"
   },
   "dependencies": {
+    "@hono/zod-validator": "^0.9.1",
+    "@neondatabase/serverless": "^1.2.0",
+    "@tanstack/react-query": "^5.104.5",
+    "@tanstack/react-table": "^9.3.1",
+    "@tanstack/react-virtual": "^3.14.22",
+    "drizzle-orm": "^0.45.4",
+    "hono": "^4.13.13",
+    "motion": "^14.6.0",
     "next": "16.4.3",
+    "nuqs": "^2.10.2",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "recharts": "^3.10.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.11",
     "@tailwindcss/turbopack": "^4",
-    "@types/node": "^20",
+    "@types/node": "^24.19.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "drizzle-kit": "^0.31.11",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.0.5"
+  },
+  "description": "Concept operations dashboard for an online store",
+  "engines": {
+    "node": ">=24"
   }
 }

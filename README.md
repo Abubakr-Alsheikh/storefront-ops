@@ -1,36 +1,45 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Storefront Ops
 
-## Getting Started
+**Concept · self-initiated**
 
-First, run the development server:
+Storefront Ops is the operations dashboard for Tidewell Goods, a fictional online homeware shop. It is a portfolio piece by [Abubakr Alsheikh](https://abubakr-alsheikh.netlify.app): the internal system a store team would open every morning, built with the care an engineer would want to read.
+
+Status: **in development**. Live link, screenshots and measured results land here when it ships.
+
+## What it will do
+
+- **Overview**: revenue, orders, average order value and conversion for a chosen range, with charts that compare it to the previous period.
+- **Live order feed**: new orders arrive in real time over server-sent events and the numbers update as they land.
+- **Orders**: 90 days of history (about 125,000 orders) in one virtualised table that stays smooth while you filter, sort and search, with every filter kept in the URL so a view can be shared.
+- **Order details**: line items, customer, payment and a status timeline, with optimistic status changes.
+- **Inventory**: stock levels with low-stock warnings and restock actions.
+- **Customers**: lifetime value, order history and segments.
+- Keyboard navigation throughout, light and dark mode, and a mobile layout.
+
+Tidewell Goods, its products, customers and orders are invented. The demo database resets every night.
+
+## Stack
+
+- [Next.js 16](https://nextjs.org) (App Router), React 19, TypeScript (strict)
+- [Hono](https://hono.dev) API inside a Next.js route handler, with a typed RPC client and [Zod](https://zod.dev) validation
+- [Drizzle ORM](https://orm.drizzle.team) on PostgreSQL ([Neon](https://neon.tech) in production, [PGlite](https://pglite.dev) locally and in tests)
+- [TanStack Query](https://tanstack.com/query), [TanStack Table](https://tanstack.com/table) and [TanStack Virtual](https://tanstack.com/virtual)
+- [Recharts](https://recharts.org), [Motion](https://motion.dev), [nuqs](https://nuqs.dev) for URL state
+- Tailwind CSS 4, IBM Plex Sans and IBM Plex Mono
+- [Vitest](https://vitest.dev)
+- Netlify (hosting, functions, a scheduled nightly reset)
+
+## Scripts
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run dev         # local dev server (uses an embedded PGlite database when DATABASE_URL is unset)
+npm run build       # production build
+npm start           # serve the production build
+npm run lint        # ESLint
+npm run typecheck   # tsc --noEmit
+npm test            # Vitest
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Licence
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Code: MIT. Product photographs belong to their photographers and are credited in the app.
