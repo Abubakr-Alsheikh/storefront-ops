@@ -6,6 +6,7 @@ import {
   index,
   integer,
   pgTable,
+  primaryKey,
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
@@ -96,16 +97,33 @@ export const restockRuns = pgTable("restock_runs", {
   ranAt: at("ran_at").notNull(),
 });
 
-export const customers = pgTable("customers", {
-  /** The simulator's customer id (DATA.md §2), not a sequence. */
-  id: integer("id").primaryKey(),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  country: text("country").notNull(),
-  city: text("city").notNull(),
-  /** When the first order arrived. */
-  createdAt: at("created_at").notNull(),
-});
+export const customers = pgTable(
+  "customers",
+  {
+    /** The simulator's customer id (DATA.md §2), not a sequence. */
+    id: integer("id").primaryKey(),
+    name: text("name").notNull(),
+    email: text("email").notNull().unique(),
+    country: text("country").notNull(),
+    city: text("city").notNull(),
+    /** When the first order arrived. */
+    createdAt: at("created_at").notNull(),
+    // Aggregates over the orders still in the database, kept by the catch-up
+    // in the same statement as the orders and rebuilt by the nightly reset.
+    ordersCount: integer("orders_count").notNull().default(0),
+    lifetimeCents: integer("lifetime_cents").notNull().default(0),
+    lastOrderAt: at("last_order_at"),
+    searchText: text("search_text")
+      .notNull()
+      .generatedAlwaysAs(sql`lower(name || ' ' || email)`),
+  },
+  (t) => [
+    // Ascending on purpose: see the note on the orders indexes.
+    index("customers_lifetime_idx").on(t.lifetimeCents, t.id),
+    index("customers_last_order_idx").on(t.lastOrderAt, t.id),
+    index("customers_search_trgm_idx").using("gin", t.searchText.op("gin_trgm_ops")),
+  ],
+);
 
 export const orders = pgTable(
   "orders",
@@ -145,9 +163,12 @@ export const orders = pgTable(
       ),
   },
   (t) => [
-    index("orders_placed_idx").on(t.placedAt.desc(), t.id.desc()),
-    index("orders_status_placed_idx").on(t.status, t.placedAt.desc()),
-    index("orders_customer_placed_idx").on(t.customerId, t.placedAt.desc()),
+    // Ascending on purpose. Drizzle writes `.desc()` as DESC NULLS LAST, which
+    // a plain `ORDER BY placed_at DESC` (NULLS FIRST) cannot use; Postgres
+    // scans an ascending index backward for DESC and forward for ASC.
+    index("orders_placed_idx").on(t.placedAt, t.id),
+    index("orders_status_placed_idx").on(t.status, t.placedAt, t.id),
+    index("orders_customer_placed_idx").on(t.customerId, t.placedAt, t.id),
     index("orders_country_idx").on(t.country),
     index("orders_search_trgm_idx").using("gin", t.searchText.op("gin_trgm_ops")),
     // Lifecycle advance: only open orders and the few delivered ones that will be refunded.
@@ -219,6 +240,46 @@ export const dailyStats = pgTable("daily_stats", {
   refundsCents: integer("refunds_cents").notNull().default(0),
 });
 
+/**
+ * Rollups the overview and inventory read instead of scanning orders. Every
+ * catch-up batch upserts them in the statement that inserts the orders.
+ */
+export const dailyVariantStats = pgTable(
+  "daily_variant_stats",
+  {
+    day: date("day", { mode: "string" }).notNull(),
+    variantId: integer("variant_id")
+      .notNull()
+      .references(() => variants.id),
+    units: integer("units").notNull().default(0),
+    /** Line revenue: quantity × unit price, before discount and shipping. */
+    revenueCents: integer("revenue_cents").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.day, t.variantId] })],
+);
+
+export const dailyCountryStats = pgTable(
+  "daily_country_stats",
+  {
+    day: date("day", { mode: "string" }).notNull(),
+    country: text("country").notNull(),
+    orders: integer("orders").notNull().default(0),
+    revenueCents: integer("revenue_cents").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.day, t.country] })],
+);
+
+/** Current status of the orders placed each day; moves with every status change. */
+export const dailyStatusStats = pgTable(
+  "daily_status_stats",
+  {
+    day: date("day", { mode: "string" }).notNull(),
+    status: text("status").notNull(),
+    orders: integer("orders").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.day, t.status] })],
+);
+
 export const simState = pgTable(
   "sim_state",
   {
@@ -226,6 +287,11 @@ export const simState = pgTable(
     simVersion: integer("sim_version").notNull(),
     /** Orders placed at or before this instant are in the database. */
     materialisedUntil: at("materialised_until").notNull(),
+    /**
+     * Exact count of rows in `orders`, moved in the statements that insert
+     * and trim them, so the unfiltered table total costs no scan.
+     */
+    ordersTotal: integer("orders_total").notNull().default(0),
   },
   (t) => [check("sim_state_singleton", sql`${t.id} = 1`)],
 );

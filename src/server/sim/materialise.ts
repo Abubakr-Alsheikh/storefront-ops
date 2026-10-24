@@ -104,13 +104,6 @@ async function insertBatch(db: Db, batch: SimOrder[], asOf: number): Promise<num
       SELECT * FROM jsonb_to_recordset(${json(events)}) AS x(
         sim_key text, type text, created_at timestamptz)
     ),
-    new_customers AS (
-      INSERT INTO customers (id, name, email, country, city, created_at)
-      SELECT DISTINCT ON (customer_id)
-        customer_id, customer_name, customer_email, country, city, customer_since
-      FROM o_in ORDER BY customer_id
-      ON CONFLICT (id) DO NOTHING
-    ),
     new_orders AS (
       INSERT INTO orders (
         sim_key, customer_id, customer_name, customer_email, country, city, status,
@@ -131,11 +124,24 @@ async function insertBatch(db: Db, batch: SimOrder[], asOf: number): Promise<num
     inserted AS (
       SELECT n.id, o.* FROM new_orders n JOIN o_in o USING (sim_key)
     ),
+    -- The FK from orders to customers is checked at the end of the statement,
+    -- so customers can be written from the orders that were actually inserted.
+    new_customers AS (
+      INSERT INTO customers (id, name, email, country, city, created_at,
+        orders_count, lifetime_cents, last_order_at)
+      SELECT customer_id, min(customer_name), min(customer_email), min(country), min(city),
+        min(customer_since), count(*)::int, sum(total_cents)::int, max(placed_at)
+      FROM inserted GROUP BY customer_id
+      ON CONFLICT (id) DO UPDATE SET
+        orders_count = customers.orders_count + excluded.orders_count,
+        lifetime_cents = customers.lifetime_cents + excluded.lifetime_cents,
+        last_order_at = GREATEST(customers.last_order_at, excluded.last_order_at)
+    ),
     new_items AS (
       INSERT INTO order_items (order_id, variant_id, quantity, unit_price_cents)
       SELECT n.id, i.variant_id, i.quantity, i.unit_price_cents
       FROM i_in i JOIN new_orders n USING (sim_key)
-      RETURNING order_id, variant_id, quantity
+      RETURNING order_id, variant_id, quantity, unit_price_cents
     ),
     new_events AS (
       INSERT INTO order_events (order_id, type, actor, created_at)
@@ -169,6 +175,32 @@ async function insertBatch(db: Db, batch: SimOrder[], asOf: number): Promise<num
         units = daily_stats.units + excluded.units,
         new_customers = daily_stats.new_customers + excluded.new_customers,
         refunds_cents = daily_stats.refunds_cents + excluded.refunds_cents
+    ),
+    variant_stats AS (
+      INSERT INTO daily_variant_stats (day, variant_id, units, revenue_cents)
+      SELECT o.day, i.variant_id, sum(i.quantity)::int, sum(i.quantity * i.unit_price_cents)::int
+      FROM new_items i JOIN inserted o ON o.id = i.order_id
+      GROUP BY 1, 2
+      ON CONFLICT (day, variant_id) DO UPDATE SET
+        units = daily_variant_stats.units + excluded.units,
+        revenue_cents = daily_variant_stats.revenue_cents + excluded.revenue_cents
+    ),
+    country_stats AS (
+      INSERT INTO daily_country_stats (day, country, orders, revenue_cents)
+      SELECT day, country, count(*)::int, sum(total_cents)::int FROM inserted GROUP BY 1, 2
+      ON CONFLICT (day, country) DO UPDATE SET
+        orders = daily_country_stats.orders + excluded.orders,
+        revenue_cents = daily_country_stats.revenue_cents + excluded.revenue_cents
+    ),
+    status_stats AS (
+      INSERT INTO daily_status_stats (day, status, orders)
+      SELECT day, status, count(*)::int FROM inserted GROUP BY 1, 2
+      ON CONFLICT (day, status) DO UPDATE SET
+        orders = daily_status_stats.orders + excluded.orders
+    ),
+    counted AS (
+      UPDATE sim_state SET orders_total = orders_total + (SELECT count(*) FROM new_orders)
+      WHERE id = 1
     )
     SELECT count(*)::int AS inserted FROM new_orders`,
   );
@@ -248,6 +280,22 @@ export async function runRestock(db: Db, at: number, week: number): Promise<void
     FROM adjusted a WHERE v.id = a.variant_id`);
 }
 
+/**
+ * A CTE named `status_moves` that shifts daily_status_stats for the rows of a
+ * CTE named `moved` (which must return `placed_at`) from one status to another.
+ */
+export function statusMoves(from: string, to: string): SQL {
+  return sql`status_moves AS (
+    INSERT INTO daily_status_stats (day, status, orders)
+    SELECT day, status, sum(delta)::int FROM (
+      SELECT (placed_at AT TIME ZONE ${STORE_TIME_ZONE})::date AS day, ${from}::text AS status, -1 AS delta FROM moved
+      UNION ALL
+      SELECT (placed_at AT TIME ZONE ${STORE_TIME_ZONE})::date, ${to}::text, 1 FROM moved
+    ) x GROUP BY 1, 2
+    ON CONFLICT (day, status) DO UPDATE SET orders = daily_status_stats.orders + excluded.orders
+  )`;
+}
+
 /** One lifecycle step: rows in `from` whose planned time for `to` has passed. */
 const STEPS = [
   { from: "paid", to: "cancelled", column: "plan_cancelled_at" },
@@ -283,12 +331,13 @@ export async function advanceLifecycles(db: Db, now: number): Promise<number> {
       WITH moved AS (
         UPDATE orders SET status = ${step.to}
         WHERE status = ${step.from} AND ${column} <= ${ts(now)}
-        RETURNING id, ${column} AS at, total_cents
+        RETURNING id, ${column} AS at, total_cents, placed_at
       ),
       events AS (
         INSERT INTO order_events (order_id, type, actor, created_at)
         SELECT id, ${step.to}, 'system', at FROM moved
-      )${refundStats}
+      ),
+      ${statusMoves(step.from, step.to)}${refundStats}
       SELECT count(*)::int AS moved FROM moved`,
     );
     moved += result.moved;

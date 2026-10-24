@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { TEST_NOW, seededTestDb } from "@/test/db";
 import { rows, type Db, type DbHandle } from "../db/client";
+import { statusMoves } from "./materialise";
 import { resetDemo } from "./reset";
 
 let handle: DbHandle;
@@ -32,6 +33,17 @@ async function snapshot(database: Db) {
       sql`select day::text, orders, revenue_cents, units, new_customers, refunds_cents, sessions
         from daily_stats order by day`,
     ),
+    rollups: await rows(
+      database,
+      sql`select 'v' k, day::text, variant_id::text id, units a, revenue_cents b from daily_variant_stats
+        union all select 'c', day::text, country, orders, revenue_cents from daily_country_stats
+        union all select 's', day::text, status, orders, 0 from daily_status_stats where orders <> 0
+        order by 1, 2, 3`,
+    ),
+    customers: await rows(
+      database,
+      sql`select id, orders_count, lifetime_cents, last_order_at from customers order by id`,
+    ),
   };
 }
 
@@ -43,8 +55,12 @@ describe("resetDemo", () => {
 
     // A visitor ships, cancels and refunds orders, writes notes and restocks.
     await db.execute(sql`
-      with picked as (select id from orders where status = 'paid' order by id limit 5)
-      update orders set status = 'packed', visitor_touched_at = now() where id in (select id from picked)`);
+      with moved as (
+        update orders set status = 'packed', visitor_touched_at = now()
+        where id in (select id from orders where status = 'paid' order by id limit 5)
+        returning placed_at
+      ), ${statusMoves("paid", "packed")}
+      select 1`);
     await db.execute(sql`
       insert into order_events (order_id, type, actor, created_at)
       select id, 'packed', 'visitor', now() from orders where visitor_touched_at is not null`);

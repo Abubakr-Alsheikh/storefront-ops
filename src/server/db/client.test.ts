@@ -13,7 +13,10 @@ describe("PGlite database", () => {
     );
     expect(tables.map((t) => t.table_name)).toEqual([
       "customers",
+      "daily_country_stats",
       "daily_stats",
+      "daily_status_stats",
+      "daily_variant_stats",
       "order_events",
       "order_items",
       "orders",

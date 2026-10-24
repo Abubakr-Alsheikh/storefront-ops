@@ -7,7 +7,7 @@ import { startOfDayNumber, zonedParts } from "@/lib/tz";
 import { TEST_DAYS, TEST_NOW, seededTestDb } from "@/test/db";
 import { rows, type Db, type DbHandle } from "../db/client";
 import { catchUp, readSimState } from "./catchUp";
-import { advanceLifecycles, materialiseRange } from "./materialise";
+import { advanceLifecycles, materialiseRange, statusMoves } from "./materialise";
 
 const HOUR = 3_600_000;
 const STATUS_RANK = { paid: 0, packed: 1, shipped: 2, delivered: 3, cancelled: 3, refunded: 4 };
@@ -45,8 +45,39 @@ async function totals(database: Db) {
         coalesce((select sum(delta) from stock_adjustments a where a.variant_id = v.id), 0))::int broken
       from variants v`,
   );
-  return { orders, items, stats, stock };
+  // Rollups and customer aggregates must agree with the raw rows exactly.
+  const [rollups] = await rows<{ variants: number; countries: number; statuses: number; customers: number }>(
+    database,
+    sql`with first as (select min((placed_at at time zone 'Europe/Lisbon')::date) d from orders)
+      select
+        (select count(*)::int from (
+          select o.day, i.variant_id, sum(i.quantity) u, sum(i.quantity * i.unit_price_cents) r
+          from order_items i join (select id, (placed_at at time zone 'Europe/Lisbon')::date as day from orders) o on o.id = i.order_id
+          group by 1, 2
+          except select day, variant_id, units, revenue_cents from daily_variant_stats, first where day >= first.d
+        ) x) as variants,
+        (select count(*)::int from (
+          select (placed_at at time zone 'Europe/Lisbon')::date, country, count(*), sum(total_cents) from orders group by 1, 2
+          except select day, country, orders, revenue_cents from daily_country_stats, first where day >= first.d
+        ) x) as countries,
+        (select count(*)::int from (
+          (select (placed_at at time zone 'Europe/Lisbon')::date, status, count(*)::int from orders group by 1, 2)
+          except (select day, status, orders from daily_status_stats where orders <> 0)
+        ) x) + (select count(*)::int from daily_status_stats where orders < 0) as statuses,
+        (select count(*)::int from customers c
+          left join (select customer_id, count(*)::int n, sum(total_cents)::int ltv, max(placed_at) last
+            from orders group by 1) a on a.customer_id = c.id
+          where (c.orders_count, c.lifetime_cents, c.last_order_at)
+            is distinct from (coalesce(a.n, 0), coalesce(a.ltv, 0), a.last)) as customers`,
+  );
+  const [counter] = await rows<{ drift: number }>(
+    database,
+    sql`select (select orders_total from sim_state) - (select count(*)::int from orders) as drift`,
+  );
+  return { orders, items, stats, stock, rollups: { ...rollups, counter: counter.drift } };
 }
+
+const CONSISTENT = { variants: 0, countries: 0, statuses: 0, customers: 0, counter: 0 };
 
 describe("seed", () => {
   it("writes exactly the simulated orders, with matching counters", async () => {
@@ -62,6 +93,7 @@ describe("seed", () => {
     expect(t.stats.units).toBe(t.items.units);
     expect(t.stock.sold).toBe(t.items.units);
     expect(t.stock.broken).toBe(0);
+    expect(t.rollups).toEqual(CONSISTENT);
   });
 
   it("numbers orders from 100001 in the order they were placed", async () => {
@@ -157,12 +189,18 @@ describe("catch-up", () => {
     expect(after.stats.orders).toBe(after.orders.n);
     expect(after.stats.units).toBe(after.items.units);
     expect(after.stock.broken).toBe(0);
+    expect(after.rollups).toEqual(CONSISTENT);
   });
 
   it("only moves lifecycles forward, even past a visitor's change", async () => {
     // A visitor ships some paid orders early.
-    await db.execute(sql`update orders set status = 'shipped', visitor_touched_at = now()
-      where id in (select id from orders where status = 'paid' order by id limit 20)`);
+    await db.execute(sql`
+      with moved as (
+        update orders set status = 'shipped', visitor_touched_at = now()
+        where id in (select id from orders where status = 'paid' order by id limit 20)
+        returning placed_at
+      ), ${statusMoves("paid", "shipped")}
+      select 1`);
     const before = await rows<{ id: number; status: keyof typeof STATUS_RANK }>(
       db,
       sql`select id, status from orders`,
@@ -186,5 +224,6 @@ describe("catch-up", () => {
         where type <> 'note' group by 1, 2 having count(*) > 1) x`,
     );
     expect(dupes.n).toBe(0);
+    expect((await totals(db)).rollups).toEqual(CONSISTENT);
   });
 });

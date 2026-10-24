@@ -101,11 +101,16 @@ async function trim(db: Db, now: number, retentionDays: number): Promise<number>
     sql`
     WITH gone AS (
       DELETE FROM orders WHERE placed_at < ${ts(now - retentionDays * DAY_MS)} RETURNING id
+    ),
+    counted AS (
+      UPDATE sim_state SET orders_total = orders_total - (SELECT count(*) FROM gone) WHERE id = 1
     )
     SELECT count(*)::int AS n FROM gone`,
   );
   const statsCutoff = dayKeyFromNumber(zonedParts(now).dayNumber - 2 * retentionDays);
-  await db.execute(sql`DELETE FROM daily_stats WHERE day < ${statsCutoff}::date`);
+  for (const table of ["daily_stats", "daily_variant_stats", "daily_country_stats"]) {
+    await db.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE day < ${statsCutoff}::date`);
+  }
   await db.execute(sql`DELETE FROM restock_runs WHERE ran_at < ${ts(now - 2 * retentionDays * DAY_MS)}`);
   await db.execute(sql`
     DELETE FROM customers c
@@ -114,11 +119,70 @@ async function trim(db: Db, now: number, retentionDays: number): Promise<number>
 }
 
 /**
- * Rebuilds order-derived columns of daily_stats for the days whose orders
- * are all still present. Sessions come from the simulator and stay as they are.
+ * Rebuilds the order-derived rollups for the days whose orders are all still
+ * present, and every customer's aggregates. Sessions come from the simulator
+ * and stay as they are.
+ *
+ * Each rollup statement upserts the fresh rows and deletes only the rows that
+ * vanished. The two sets are disjoint, so one statement may touch both.
  */
 async function rebuildRecentStats(db: Db, now: number, retentionDays: number): Promise<void> {
   const firstDay = dayKeyFromNumber(zonedParts(now).dayNumber - retentionDays + 1);
+  const since = sql`(${firstDay}::date::timestamp AT TIME ZONE ${STORE_TIME_ZONE})`;
+  const localDay = (column: string) =>
+    sql`(${sql.identifier(column)} AT TIME ZONE ${STORE_TIME_ZONE})::date`;
+
+  await db.execute(sql`
+    WITH fresh AS (
+      SELECT ${localDay("placed_at")} AS day, i.variant_id,
+        sum(i.quantity)::int AS units, sum(i.quantity * i.unit_price_cents)::int AS revenue
+      FROM order_items i JOIN orders o ON o.id = i.order_id
+      WHERE o.placed_at >= ${since}
+      GROUP BY 1, 2
+    ),
+    stale AS (
+      DELETE FROM daily_variant_stats s WHERE s.day >= ${firstDay}::date
+        AND NOT EXISTS (SELECT 1 FROM fresh f WHERE f.day = s.day AND f.variant_id = s.variant_id)
+    )
+    INSERT INTO daily_variant_stats (day, variant_id, units, revenue_cents)
+    SELECT day, variant_id, units, revenue FROM fresh
+    ON CONFLICT (day, variant_id) DO UPDATE SET units = excluded.units, revenue_cents = excluded.revenue_cents`);
+
+  await db.execute(sql`
+    WITH fresh AS (
+      SELECT ${localDay("placed_at")} AS day, country, count(*)::int AS orders, sum(total_cents)::int AS revenue
+      FROM orders WHERE placed_at >= ${since} GROUP BY 1, 2
+    ),
+    stale AS (
+      DELETE FROM daily_country_stats s WHERE s.day >= ${firstDay}::date
+        AND NOT EXISTS (SELECT 1 FROM fresh f WHERE f.day = s.day AND f.country = s.country)
+    )
+    INSERT INTO daily_country_stats (day, country, orders, revenue_cents)
+    SELECT day, country, orders, revenue FROM fresh
+    ON CONFLICT (day, country) DO UPDATE SET orders = excluded.orders, revenue_cents = excluded.revenue_cents`);
+
+  // Status counts exist only for days that still have orders.
+  await db.execute(sql`
+    WITH fresh AS (
+      SELECT ${localDay("placed_at")} AS day, status, count(*)::int AS orders FROM orders GROUP BY 1, 2
+    ),
+    stale AS (
+      DELETE FROM daily_status_stats s
+      WHERE NOT EXISTS (SELECT 1 FROM fresh f WHERE f.day = s.day AND f.status = s.status)
+    )
+    INSERT INTO daily_status_stats (day, status, orders)
+    SELECT day, status, orders FROM fresh
+    ON CONFLICT (day, status) DO UPDATE SET orders = excluded.orders`);
+
+  await db.execute(sql`
+    UPDATE customers c SET orders_count = x.n, lifetime_cents = x.ltv, last_order_at = x.last
+    FROM (
+      SELECT customer_id, count(*)::int AS n, sum(total_cents)::int AS ltv, max(placed_at) AS last
+      FROM orders GROUP BY customer_id
+    ) x
+    WHERE c.id = x.customer_id
+      AND (c.orders_count, c.lifetime_cents, c.last_order_at) IS DISTINCT FROM (x.n, x.ltv, x.last)`);
+
   await db.execute(sql`
     WITH placed AS (
       SELECT (placed_at AT TIME ZONE ${STORE_TIME_ZONE})::date AS day,

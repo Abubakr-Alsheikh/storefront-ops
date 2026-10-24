@@ -15,6 +15,20 @@
       "when": 1792859186637,
       "tag": "0001_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792867371993,
+      "tag": "0002_rollups",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792868749758,
+      "tag": "0003_index_order",
+      "breakpoints": true
     }
   ]
 }

@@ -6,7 +6,14 @@ import { daySessionsUntil } from "@/lib/sim/rate";
 import { openingStock, reorderPoint } from "@/lib/sim/supply";
 import { dayKeyFromNumber, startOfDayNumber, zonedParts } from "@/lib/tz";
 import type { Db } from "../db/client";
-import { dailyStats, products, simState, variants } from "../db/schema";
+import {
+  dailyCountryStats,
+  dailyStats,
+  dailyVariantStats,
+  products,
+  simState,
+  variants,
+} from "../db/schema";
 import { readSimState } from "./catchUp";
 import { materialiseRange } from "./materialise";
 
@@ -42,6 +49,9 @@ export interface SeedReport {
 }
 
 const TABLES = [
+  "daily_variant_stats",
+  "daily_country_stats",
+  "daily_status_stats",
   "order_events",
   "order_items",
   "orders",
@@ -95,36 +105,64 @@ export async function seedCatalogue(db: Db): Promise<void> {
     .onConflictDoNothing();
 }
 
-/** Daily stats for local days `[firstDay, endDay)` computed in memory, no order rows. */
-export function simulatedDailyStats(firstDay: number, endDay: number) {
+/**
+ * Daily rollups for local days `[firstDay, endDay)` computed in memory, with
+ * no order rows: the history before the oldest stored order.
+ */
+export function simulatedRollups(firstDay: number, endDay: number) {
   const from = startOfDayNumber(firstDay);
   const to = startOfDayNumber(endDay);
   const byDay = new Map<number, { orders: number; revenue: number; units: number; newCustomers: number; refunds: number }>();
   for (let d = firstDay; d < endDay; d++) {
     byDay.set(d, { orders: 0, revenue: 0, units: 0, newCustomers: 0, refunds: 0 });
   }
+  const variantRows = new Map<string, { day: string; variantId: number; units: number; revenueCents: number }>();
+  const countryRows = new Map<string, { day: string; country: string; orders: number; revenueCents: number }>();
+
   for (const o of simulateOrders(from - 1, to - 1)) {
-    const day = byDay.get(zonedParts(o.placedAt).dayNumber);
+    const dayNumber = zonedParts(o.placedAt).dayNumber;
+    const day = byDay.get(dayNumber);
+    const key = dayKeyFromNumber(dayNumber);
     if (day) {
       day.orders++;
       day.revenue += o.totalCents;
       day.units += o.itemCount;
       if (!o.isReturning) day.newCustomers++;
+      for (const item of o.items) {
+        const id = `${key}|${item.variantId}`;
+        const row = variantRows.get(id) ?? { day: key, variantId: item.variantId, units: 0, revenueCents: 0 };
+        row.units += item.quantity;
+        row.revenueCents += item.quantity * item.unitPriceCents;
+        variantRows.set(id, row);
+      }
+      const id = `${key}|${o.country}`;
+      const row = countryRows.get(id) ?? { day: key, country: o.country, orders: 0, revenueCents: 0 };
+      row.orders++;
+      row.revenueCents += o.totalCents;
+      countryRows.set(id, row);
     }
     if (o.plan.refundedAt !== null && o.plan.refundedAt < to) {
       const refundDay = byDay.get(zonedParts(o.plan.refundedAt).dayNumber);
       if (refundDay) refundDay.refunds += o.totalCents;
     }
   }
-  return [...byDay].map(([d, s]) => ({
-    day: dayKeyFromNumber(d),
-    orders: s.orders,
-    revenueCents: s.revenue,
-    units: s.units,
-    newCustomers: s.newCustomers,
-    refundsCents: s.refunds,
-    sessions: daySessionsUntil(d, startOfDayNumber(d + 1)),
-  }));
+  return {
+    daily: [...byDay].map(([d, s]) => ({
+      day: dayKeyFromNumber(d),
+      orders: s.orders,
+      revenueCents: s.revenue,
+      units: s.units,
+      newCustomers: s.newCustomers,
+      refundsCents: s.refunds,
+      sessions: daySessionsUntil(d, startOfDayNumber(d + 1)),
+    })),
+    variants: [...variantRows.values()],
+    countries: [...countryRows.values()],
+  };
+}
+
+async function insertChunks<T>(rowsToInsert: T[], size: number, insert: (chunk: T[]) => Promise<unknown>) {
+  for (let i = 0; i < rowsToInsert.length; i += size) await insert(rowsToInsert.slice(i, i + size));
 }
 
 export async function seedDatabase(db: Db, options: SeedOptions): Promise<SeedReport> {
@@ -152,11 +190,17 @@ export async function seedDatabase(db: Db, options: SeedOptions): Promise<SeedRe
     .values({ id: 1, simVersion: SIM_VERSION, materialisedUntil: new Date(from) })
     .onConflictDoNothing();
 
-  log(`Writing ${days} days of daily stats from the simulator`);
-  const history = simulatedDailyStats(firstOrderDay - days, firstOrderDay);
-  for (let i = 0; i < history.length; i += 100) {
-    await db.insert(dailyStats).values(history.slice(i, i + 100)).onConflictDoNothing();
-  }
+  log(`Writing ${days} days of rollups from the simulator`);
+  const history = simulatedRollups(firstOrderDay - days, firstOrderDay);
+  await insertChunks(history.daily, 100, (chunk) =>
+    db.insert(dailyStats).values(chunk).onConflictDoNothing(),
+  );
+  await insertChunks(history.variants, 1000, (chunk) =>
+    db.insert(dailyVariantStats).values(chunk).onConflictDoNothing(),
+  );
+  await insertChunks(history.countries, 1000, (chunk) =>
+    db.insert(dailyCountryStats).values(chunk).onConflictDoNothing(),
+  );
 
   log(`Writing orders from ${new Date(from).toISOString()} to ${new Date(now).toISOString()}`);
   let orders = 0;
@@ -173,5 +217,5 @@ export async function seedDatabase(db: Db, options: SeedOptions): Promise<SeedRe
     log(`  ${dayKeyFromNumber(d)}: ${orders.toLocaleString("en-GB")} orders so far`);
   }
 
-  return { from, to: now, orders, statsOnlyDays: history.length, ms: performance.now() - started };
+  return { from, to: now, orders, statsOnlyDays: history.daily.length, ms: performance.now() - started };
 }
