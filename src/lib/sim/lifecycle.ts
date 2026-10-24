@@ -1,5 +1,5 @@
 import { SHIPPING_ZONES, type ShippingZone } from "@/lib/data/countries";
-import type { OrderStatus, PlanOutcome } from "@/lib/domain";
+import type { EventType, OrderStatus, PlanOutcome } from "@/lib/domain";
 import { dayKeyFromNumber, zonedParts, zonedToUtc } from "@/lib/tz";
 import { randBetween, randInt, type Rng } from "./prng";
 import { weekdayOfDay } from "./rate";
@@ -148,4 +148,27 @@ export function statusAt(plan: LifecyclePlan, now: number): OrderStatus {
   if (plan.shippedAt !== null && now >= plan.shippedAt) return "shipped";
   if (plan.packedAt !== null && now >= plan.packedAt) return "packed";
   return "paid";
+}
+
+/**
+ * Lifecycle events the plan has produced by `asOf`, oldest first. "Placed"
+ * and "paid" are not stored: every order has them, and the timeline reads
+ * them from `placed_at` and `plan_paid_at`.
+ */
+export function elapsedEvents(
+  plan: LifecyclePlan,
+  asOf: number,
+): { type: EventType; at: number }[] {
+  const events: { type: EventType; at: number }[] = [];
+  const steps: [EventType, number | null][] = [
+    ["cancelled", plan.cancelledAt],
+    ["packed", plan.packedAt],
+    ["shipped", plan.shippedAt],
+    ["delivered", plan.deliveredAt],
+    ["refunded", plan.refundedAt],
+  ];
+  for (const [type, at] of steps) {
+    if (at !== null && at <= asOf) events.push({ type, at });
+  }
+  return events;
 }

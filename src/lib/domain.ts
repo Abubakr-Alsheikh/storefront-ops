@@ -20,3 +20,20 @@ export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 /** How a simulated order's life ends. */
 export const PLAN_OUTCOMES = ["complete", "cancelled", "refunded"] as const;
 export type PlanOutcome = (typeof PLAN_OUTCOMES)[number];
+
+/** Timeline entries on an order. */
+export const EVENT_TYPES = [
+  "placed",
+  "paid",
+  "packed",
+  "shipped",
+  "delivered",
+  "cancelled",
+  "refunded",
+  "note",
+] as const;
+export type EventType = (typeof EVENT_TYPES)[number];
+
+/** Who made a change: the simulator or a demo visitor. Visitor changes are reverted nightly. */
+export const ACTORS = ["system", "visitor"] as const;
+export type Actor = (typeof ACTORS)[number];

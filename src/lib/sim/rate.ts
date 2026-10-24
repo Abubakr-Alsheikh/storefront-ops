@@ -1,4 +1,4 @@
-import { zonedParts } from "@/lib/tz";
+import { startOfDayNumber, zonedParts } from "@/lib/tz";
 import { HOUR_MS, SIM_SEED } from "./config";
 import { hash32, rngFor } from "./prng";
 
@@ -115,4 +115,21 @@ export function hourSessions(hour: number): number {
   const expected = hourRate(hour) / conversionRate(local.dayNumber);
   const jitter = 0.96 + 0.08 * rngFor(SIM_SEED, "sessions", hour)();
   return Math.round(expected * jitter);
+}
+
+/**
+ * Sessions on local day `n` up to instant `toMs`, with the current hour
+ * counted pro rata. It only rises as `toMs` grows, so a catch-up can store it
+ * with GREATEST() and never double-count.
+ */
+export function daySessionsUntil(dayNumber: number, toMs: number): number {
+  const startHour = startOfDayNumber(dayNumber) / HOUR_MS;
+  const endHour = startOfDayNumber(dayNumber + 1) / HOUR_MS;
+  let total = 0;
+  for (let h = startHour; h < endHour; h++) {
+    const elapsed = (toMs - h * HOUR_MS) / HOUR_MS;
+    if (elapsed <= 0) break;
+    total += hourSessions(h) * Math.min(1, elapsed);
+  }
+  return Math.round(total);
 }

@@ -80,9 +80,11 @@ describe("window seams", () => {
 });
 
 describe("volume", () => {
-  it("simulates 90 days in under 3 seconds", () => {
+  // A sanity ceiling only: parallel PGlite workers share the CPU during
+  // `npm test`. The budget (under 3 s) is measured alone by `npm run bench:sim`.
+  it("simulates 90 days without a runaway slowdown", () => {
     expect(ninetyDays.length).toBeGreaterThan(120_000);
-    expect(ninetyDaysMs).toBeLessThan(3000);
+    expect(ninetyDaysMs).toBeLessThan(10_000);
   });
 
   it("keeps every whole non-sale day between 1,200 and 1,600 orders over 90 days", () => {

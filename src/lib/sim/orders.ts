@@ -8,10 +8,10 @@ import {
   MAX_ORDERS_PER_HOUR,
   SIM_SEED,
 } from "./config";
-import { customerById, newCustomerId, type SimCustomer } from "./customers";
+import { customerById, firstOrderHour, newCustomerId, type SimCustomer } from "./customers";
 import { planLifecycle, type LifecyclePlan } from "./lifecycle";
 import { poisson, randInt, rngFor, weightedPicker, type Rng } from "./prng";
-import { hourRate, isSaleDay } from "./rate";
+import { BASE_DAILY_ORDERS, hourRate, isSaleDay } from "./rate";
 
 /**
  * The order simulator. Every order, past or live, comes from here.
@@ -143,15 +143,28 @@ function pickReturningCustomer(rng: Rng, hour: number): number {
 const pickVariant = weightedPicker(VARIANTS, VARIANTS.map((v) => v.popularity));
 
 const LINE_COUNTS = [1, 2, 3, 4, 5];
-const pickLineCount = weightedPicker(LINE_COUNTS, [62, 24, 9, 3, 2]);
+const LINE_WEIGHTS = [62, 24, 9, 3, 2];
+const pickLineCount = weightedPicker(LINE_COUNTS, LINE_WEIGHTS);
 
 type QuantityProfile = "single" | "set" | "pair" | "default";
-const QUANTITY_PICKERS: Record<QuantityProfile, (rng: Rng) => number> = {
-  single: () => 1,
-  set: weightedPicker([1, 2, 4, 6], [52, 22, 21, 5]),
-  pair: weightedPicker([1, 2, 4], [64, 28, 8]),
-  default: weightedPicker([1, 2, 3], [88, 10, 2]),
+const QUANTITY_MIX: Record<QuantityProfile, readonly [number[], number[]]> = {
+  single: [[1], [1]],
+  set: [[1, 2, 4, 6], [52, 22, 21, 5]],
+  pair: [[1, 2, 4], [64, 28, 8]],
+  default: [[1, 2, 3], [88, 10, 2]],
 };
+const QUANTITY_PICKERS: Record<QuantityProfile, (rng: Rng) => number> = {
+  // A single never draws, so it leaves the order's stream untouched.
+  single: () => 1,
+  set: weightedPicker(...QUANTITY_MIX.set),
+  pair: weightedPicker(...QUANTITY_MIX.pair),
+  default: weightedPicker(...QUANTITY_MIX.default),
+};
+
+function weightedMean(values: readonly number[], weights: readonly number[]): number {
+  const total = weights.reduce((a, b) => a + b, 0);
+  return values.reduce((sum, v, i) => sum + v * weights[i], 0) / total;
+}
 const QUANTITY_PROFILE: Partial<Record<ProductTypeKey, QuantityProfile>> = {
   "dinner-plate": "set",
   "side-plate": "set",
@@ -220,6 +233,32 @@ function pickItems(rng: Rng): { items: SimLineItem[]; bulkyUnits: number } {
     });
   }
   return { items: [...chosen.values()], bulkyUnits };
+}
+
+const totalPopularity = VARIANTS.reduce((sum, v) => sum + v.popularity, 0);
+const meanLines = weightedMean(LINE_COUNTS, LINE_WEIGHTS);
+
+/**
+ * Units of a variant the shop expects to sell on an average day, from the
+ * popularity weights alone. Sizes the opening stock before any history exists.
+ */
+export function expectedDailyUnits(variant: Variant): number {
+  const [values, weights] = QUANTITY_MIX[QUANTITY_PROFILE[typeOf(variant)] ?? "default"];
+  return (
+    BASE_DAILY_ORDERS *
+    meanLines *
+    (variant.popularity / totalPopularity) *
+    weightedMean(values, weights)
+  );
+}
+
+/** When customer `id` placed their first order: the moment they became a customer. */
+export function firstOrderAt(customerId: number): number {
+  const hour = firstOrderHour(customerId);
+  const header = planHour(hour);
+  const index = header.newIndex.indexOf(customerId - newCustomerId(hour, 0));
+  // An id past the hour's last new customer never ordered; use the hour itself.
+  return hour * HOUR_MS + (index >= 0 ? header.offsets[index] : 0);
 }
 
 function buildOrder(hour: number, index: number, header: HourPlan): SimOrder {
