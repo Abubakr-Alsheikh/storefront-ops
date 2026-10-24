@@ -14,7 +14,8 @@
     "screens": "node scripts/screens.mjs",
     "axe": "node scripts/axe.mjs",
     "db:seed": "node --env-file-if-exists=.env.local --import ./scripts/lib/ts-hooks.mjs scripts/seed.mts",
-    "bench:sim": "node --import ./scripts/lib/ts-hooks.mjs scripts/bench-sim.mts"
+    "bench:sim": "node --import ./scripts/lib/ts-hooks.mjs scripts/bench-sim.mts",
+    "explain:hot": "node --import ./scripts/lib/ts-hooks.mjs scripts/explain-hot.mts"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.9.1",
