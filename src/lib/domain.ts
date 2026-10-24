@@ -37,3 +37,23 @@ export type EventType = (typeof EVENT_TYPES)[number];
 /** Who made a change: the simulator or a demo visitor. Visitor changes are reverted nightly. */
 export const ACTORS = ["system", "visitor"] as const;
 export type Actor = (typeof ACTORS)[number];
+
+/**
+ * Status changes a person may make: one step forward, cancel only before
+ * packing, refund only after delivery. The simulator follows the same graph.
+ */
+export const ALLOWED_TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
+  paid: ["packed", "cancelled"],
+  packed: ["shipped"],
+  shipped: ["delivered"],
+  delivered: ["refunded"],
+  cancelled: [],
+  refunded: [],
+};
+
+export function canTransition(from: OrderStatus, to: OrderStatus): boolean {
+  return ALLOWED_TRANSITIONS[from].includes(to);
+}
+
+/** Bulk "Mark as shipped" applies to these; anything else is skipped. */
+export const SHIPPABLE_STATUSES: readonly OrderStatus[] = ["paid", "packed"];
