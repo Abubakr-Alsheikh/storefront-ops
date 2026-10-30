@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
+import { Providers } from "@/components/providers";
 import { site } from "@/lib/site";
+import { PREFERENCES_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
 const plexSans = IBM_Plex_Sans({
@@ -23,8 +25,14 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${plexSans.variable} ${plexMono.variable} h-full antialiased`}>
-      <body className="min-h-full">{children}</body>
+    // The inline script sets data attributes on <html> before hydration.
+    <html lang="en" suppressHydrationWarning className={`${plexSans.variable} ${plexMono.variable} antialiased`}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: PREFERENCES_SCRIPT }} />
+      </head>
+      <body>
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }
