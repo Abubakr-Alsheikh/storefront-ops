@@ -123,6 +123,18 @@ export const orderDetail = orderRow.extend({
 });
 export type OrderDetail = z.infer<typeof orderDetail>;
 
+/** `?after=` resumes the live feed when `Last-Event-ID` is not available. */
+export const liveFeedQuery = z.object({ after: queryInt(0) });
+
+/** The `kpi` event of the live feed: today's totals so far. */
+export const liveKpi = z.object({
+  day: dayKey,
+  orders: z.number().int(),
+  revenueCents: z.number().int(),
+  sessions: z.number().int(),
+});
+export type LiveKpi = z.infer<typeof liveKpi>;
+
 export const orderNumberParam = z.object({
   number: z.coerce.number().int().min(100001).max(2_147_483_647),
 });

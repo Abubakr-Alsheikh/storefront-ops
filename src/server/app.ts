@@ -3,6 +3,7 @@ import "server-only";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
+import { streamSSE } from "hono/streaming";
 import type { Health } from "@/lib/contracts/catalogue";
 import {
   customerIdParam,
@@ -14,6 +15,7 @@ import {
 } from "@/lib/contracts/catalogue";
 import {
   bulkShipBody,
+  liveFeedQuery,
   noteBody,
   orderNumberParam,
   ordersQuery,
@@ -26,6 +28,7 @@ import { getDbHandle } from "./db";
 import { validate, type AppDeps, type AppEnv } from "./env";
 import { ApiError, badRequest, errorBody, notFound, rateLimited } from "./errors";
 import { ensureFresh } from "./freshness";
+import { runLiveFeed } from "./liveFeed";
 import { getCustomer, listCustomers } from "./queries/customers";
 import { listInventory, restock } from "./queries/inventory";
 import { addNote, bulkShip, changeStatus, getOrder, listOrders } from "./queries/orders";
@@ -66,9 +69,12 @@ export function createApp(deps: AppDeps) {
       c.set("db", handle.db);
       c.set("dbKind", handle.kind);
       c.set("now", deps.now());
+      const started = performance.now();
       await next();
       // Live data: never let a CDN or the browser keep an API response.
       if (!c.res.headers.has("Cache-Control")) c.header("Cache-Control", "no-store");
+      // Time inside the function, visible in the network tab and to curl.
+      c.header("Server-Timing", `app;dur=${(performance.now() - started).toFixed(1)}`);
     })
     .onError((error, c) => {
       if (error instanceof ApiError) return c.json(errorBody(error.code, error.message), error.status);
@@ -151,6 +157,22 @@ export function createApp(deps: AppDeps) {
     .get("/customers/:id", validate("param", customerIdParam), async (c) =>
       c.json(await getCustomer(c.var.db, c.req.valid("param").id, c.var.now)),
     )
+
+    .get("/stream/orders", validate("query", liveFeedQuery), (c) => {
+      // EventSource sends the header on its own reconnects; ?after= covers a
+      // stream the client recreates after a pause.
+      const header = Number(c.req.header("last-event-id"));
+      const after = Number.isInteger(header) && header > 0 ? header : c.req.valid("query").after;
+      return streamSSE(c, (stream) =>
+        runLiveFeed(stream, {
+          db: c.var.db,
+          now: deps.now,
+          after,
+          catchUpOnTick: deps.autoCatchUp ?? false,
+          timing: deps.liveFeed,
+        }),
+      );
+    })
 
     .get("/search", validate("query", searchQuery), async (c) =>
       c.json(await search(c.var.db, c.req.valid("query").q)),

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, lt, lte, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, lt, lte, sql, type SQL } from "drizzle-orm";
 import type {
   BulkShipResult,
   OrderDetail,
@@ -169,6 +169,22 @@ export async function listOrders(db: Db, query: OrdersQuery): Promise<OrdersPage
     if (plan.reversed) page.reverse();
   }
   return { rows: page.map(toOrderRow), total, offset: query.offset };
+}
+
+/** Orders newer than `after`, oldest first: what the live feed sends next. */
+export async function ordersAfter(db: Db, after: number, limit: number): Promise<OrderRow[]> {
+  const list = await db
+    .select(rowColumns)
+    .from(orders)
+    .where(gt(orders.id, after))
+    .orderBy(asc(orders.id))
+    .limit(limit);
+  return list.map(toOrderRow);
+}
+
+export async function newestOrderNumber(db: Db): Promise<number> {
+  const [row] = await db.select({ number: orders.id }).from(orders).orderBy(desc(orders.id)).limit(1);
+  return row?.number ?? 0;
 }
 
 export async function ordersForCustomer(db: Db, customerId: number): Promise<OrderRow[]> {

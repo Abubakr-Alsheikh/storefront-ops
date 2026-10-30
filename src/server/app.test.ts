@@ -58,6 +58,7 @@ describe("health and errors", () => {
     const body = await res.json();
     expect(body).toMatchObject({ ok: true, db: "pglite", simVersion: 1, storedSimVersion: 1 });
     expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(res.headers.get("server-timing")).toMatch(/^app;dur=\d/);
   });
 
   it("answers unknown endpoints with the error shape", async () => {
@@ -375,6 +376,63 @@ describe("writes", () => {
       (select (placed_at at time zone 'Europe/Lisbon')::date, status, count(*)::int from orders group by 1, 2)
       except (select day, status, orders from daily_status_stats where orders <> 0)) x`);
     expect(statuses).toBe(0);
+  });
+});
+
+describe("GET /api/stream/orders", () => {
+  const feed = () =>
+    createApp({
+      getDbHandle: async () => handle,
+      now: () => TEST_NOW,
+      liveFeed: { durationMs: 40, tickMs: 5 },
+    });
+
+  function parse(text: string) {
+    return text
+      .split("\n\n")
+      .filter((block) => block.trim() && !block.startsWith(":"))
+      .map((block) => {
+        const field = (name: string) =>
+          block.split("\n").find((l) => l.startsWith(`${name}:`))?.slice(name.length + 1).trim();
+        return { id: field("id"), event: field("event"), data: field("data"), retry: field("retry") };
+      });
+  }
+
+  it("streams orders after the given number, then asks the client to reconnect", async () => {
+    const [{ max }] = await rows<{ max: number }>(handle.db, sql`select max(id)::int max from orders`);
+    const res = await feed().request(`/api/stream/orders?after=${max - 3}`);
+    expect(res.headers.get("content-type")).toContain("text/event-stream");
+    const events = parse(await res.text());
+    expect(events.filter((e) => e.event === "order").map((e) => Number(e.id))).toEqual([max - 2, max - 1, max]);
+    expect(JSON.parse(events.find((e) => e.event === "order")?.data ?? "{}").number).toBe(max - 2);
+    const kpi = events.filter((e) => e.event === "kpi");
+    expect(kpi).toHaveLength(1);
+    expect(JSON.parse(kpi[0].data ?? "{}")).toMatchObject({ day: dayKeyAt(TEST_NOW) });
+    expect(events.at(-1)).toMatchObject({ event: "close", retry: "1000" });
+  });
+
+  it("loses and repeats nothing across a reconnect with Last-Event-ID", async () => {
+    const [{ max }] = await rows<{ max: number }>(handle.db, sql`select max(id)::int max from orders`);
+    const first = await feed().request(`/api/stream/orders?after=${max - 2}`);
+    const seen = parse(await first.text()).filter((e) => e.event === "order").map((e) => Number(e.id));
+    expect(seen).toEqual([max - 1, max]);
+    const again = await feed().request("/api/stream/orders", { headers: { "last-event-id": String(max) } });
+    expect(parse(await again.text()).filter((e) => e.event === "order")).toEqual([]);
+  });
+
+  it("starts at the newest order when told nothing, and caps a backlog at 50 a tick", async () => {
+    const fresh = parse(await (await feed().request("/api/stream/orders")).text());
+    expect(fresh.filter((e) => e.event === "order")).toEqual([]);
+    const [{ max }] = await rows<{ max: number }>(handle.db, sql`select max(id)::int max from orders`);
+    const slow = createApp({
+      getDbHandle: async () => handle,
+      now: () => TEST_NOW,
+      liveFeed: { durationMs: 1, tickMs: 5 },
+    });
+    const backlog = parse(await (await slow.request(`/api/stream/orders?after=${max - 80}`)).text());
+    const ids = backlog.filter((e) => e.event === "order").map((e) => Number(e.id));
+    expect(ids).toHaveLength(50);
+    expect(ids[0]).toBe(max - 79);
   });
 });
 

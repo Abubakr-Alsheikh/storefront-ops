@@ -3,6 +3,7 @@ import type { ValidationTargets } from "hono";
 import type { z } from "zod";
 import type { Db, DbHandle, DbKind } from "./db/client";
 import { badRequest } from "./errors";
+import type { LiveFeedTiming } from "./liveFeed";
 
 /** What the API needs from the outside world; tests pass their own. */
 export interface AppDeps {
@@ -14,6 +15,8 @@ export interface AppDeps {
   writesPerMinute?: number;
   /** Run the catch-up before reads when data is over a minute old. */
   autoCatchUp?: boolean;
+  /** Live feed timing; tests shorten it. */
+  liveFeed?: Partial<LiveFeedTiming>;
 }
 
 /** Per-request values set by the app middleware. */
