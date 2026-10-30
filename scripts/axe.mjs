@@ -3,6 +3,7 @@
  * Runs axe-core (4.10.2 from cdnjs) against a URL at mobile and desktop widths.
  * Usage: node scripts/axe.mjs [url] [widths]
  *   node scripts/axe.mjs http://localhost:3000 360,1280
+ *   node scripts/axe.mjs http://localhost:3000 360,1280 dark
  * Exits 1 on any violation.
  */
 import { launch, setViewport, wait, walkPage } from "./lib/cdp.mjs";
@@ -11,7 +12,10 @@ const url = process.argv[2] ?? "http://localhost:3000";
 const widths = (process.argv[3] ?? "360,1280").split(",").map(Number);
 const AXE = "https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.10.2/axe.min.js";
 
+const scheme = process.argv[4] ?? "light";
+
 const { send, evaluate, close } = await launch();
+await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }] });
 let total = 0;
 
 for (const width of widths) {

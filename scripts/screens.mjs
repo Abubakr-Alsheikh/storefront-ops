@@ -3,6 +3,7 @@
  * Full-page screenshots at real device widths.
  * Usage: node scripts/screens.mjs [url] [outDir] [widths]
  *   node scripts/screens.mjs http://localhost:3000 screenshots 360,768,1280,1920
+ *   node scripts/screens.mjs http://localhost:3000 screenshots/dark 360,1280 dark
  * Prints OVERFLOW when the page scrolls sideways at a width.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -13,7 +14,10 @@ const url = process.argv[2] ?? "http://localhost:3000";
 const outDir = process.argv[3] ?? "screenshots";
 const widths = (process.argv[4] ?? "360,768,1280,1920").split(",").map(Number);
 
+const scheme = process.argv[5] ?? "light";
+
 const { send, evaluate, close } = await launch();
+await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }] });
 mkdirSync(outDir, { recursive: true });
 let failed = false;
 
