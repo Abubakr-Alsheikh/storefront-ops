@@ -1,9 +1,9 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useState, useSyncExternalStore } from "react";
-import { Dialog, DialogTrigger, SheetContent } from "@/components/ui/overlays";
 import { NAV_ICONS, MenuIcon, RailIcon } from "@/components/ui/icons";
 import { IconButton } from "@/components/ui/primitives";
 import { cx } from "@/lib/cx";
@@ -53,7 +53,7 @@ function NavFallback({ rail }: { rail: boolean }) {
   ));
 }
 
-function SidebarBody({ onNavigate, rail }: { onNavigate?: () => void; rail: boolean }) {
+export function SidebarBody({ onNavigate, rail }: { onNavigate?: () => void; rail: boolean }) {
   const hideInRail = rail && "lg:rail:hidden";
   return (
     <>
@@ -88,10 +88,10 @@ function SidebarBody({ onNavigate, rail }: { onNavigate?: () => void; rail: bool
       <div className={cx("border-t border-line px-4 py-3 text-xs text-ink-muted", hideInRail)}>
         <p className="font-medium text-ink">{shellCopy.footer.concept}</p>
         <p className="mt-1">
-          <a href={site.author.url} className="underline underline-offset-2 hover:text-ink">{shellCopy.footer.builtBy}</a>
+          <a href={site.author.url} className="inline-flex min-h-6 items-center underline underline-offset-2 hover:text-ink">{shellCopy.footer.builtBy}</a>
         </p>
         <p>
-          <a href={site.repo} className="underline underline-offset-2 hover:text-ink">{shellCopy.footer.source}</a>
+          <a href={site.repo} className="inline-flex min-h-6 items-center underline underline-offset-2 hover:text-ink">{shellCopy.footer.source}</a>
         </p>
         <p className="mt-1">{shellCopy.footer.note}</p>
       </div>
@@ -123,19 +123,21 @@ export function RailToggle() {
   );
 }
 
-/** Below `lg` the same navigation opens as a drawer. */
-export function NavDrawer() {
-  const [open, setOpen] = useState(false);
+const NavDrawerSheet = dynamic(() => import("./NavDrawerSheet"), {
+  ssr: false,
+  loading: () => <NavButton />,
+});
+
+function NavButton({ onClick }: { onClick?: () => void }) {
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <IconButton label={shellCopy.openNav} className="lg:hidden">
-          <MenuIcon />
-        </IconButton>
-      </DialogTrigger>
-      <SheetContent side="left" title={shellCopy.primaryNav} className="w-58 max-w-[85vw]">
-        <SidebarBody onNavigate={() => setOpen(false)} rail={false} />
-      </SheetContent>
-    </Dialog>
+    <IconButton label={shellCopy.openNav} aria-haspopup="dialog" onClick={onClick} className="lg:hidden">
+      <MenuIcon />
+    </IconButton>
   );
+}
+
+/** Below `lg` the same navigation opens as a drawer, loaded on first use. */
+export function NavDrawer() {
+  const [used, setUsed] = useState(false);
+  return used ? <NavDrawerSheet /> : <NavButton onClick={() => setUsed(true)} />;
 }

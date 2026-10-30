@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { TopBar } from "@/components/shell/TopBar";
 import { shellCopy } from "@/lib/data/copy/shell";
@@ -12,10 +13,15 @@ export default function DashboardLayout({ children }: LayoutProps<"/">) {
         {shellCopy.skipLink}
       </a>
       <div className="flex min-h-dvh">
-        <Sidebar />
+        {/* Separate boundaries hydrate separately, in smaller tasks. */}
+        <Suspense fallback={null}>
+          <Sidebar />
+        </Suspense>
         <div className="flex min-w-0 flex-1 flex-col">
-          <TopBar />
-          <main id="content" tabIndex={-1} className="mx-auto w-full max-w-[1600px] scroll-mt-14 px-4 py-6 outline-none md:px-6 xl:px-8">
+          <Suspense fallback={<div className="h-14 border-b border-line" />}>
+            <TopBar />
+          </Suspense>
+          <main id="content" tabIndex={-1} className="mx-auto w-full max-w-[1600px] min-w-0 scroll-mt-14 px-4 py-6 outline-none md:px-6 xl:px-8">
             {children}
           </main>
         </div>

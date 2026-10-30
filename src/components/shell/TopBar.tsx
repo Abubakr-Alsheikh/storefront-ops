@@ -22,8 +22,6 @@ export function TopBar() {
           <PageTitle />
         </Suspense>
       </div>
-      {/* Pages that have a date range put their picker here (M6). */}
-      <div id="topbar-slot" className="contents" />
       <LiveIndicator state="connecting" />
       <CommandButton />
       <ThemeToggle />

@@ -1,43 +1,28 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import dynamic from "next/dynamic";
+import { useState, useSyncExternalStore } from "react";
 import { MoonIcon, SunIcon, SystemIcon } from "@/components/ui/icons";
-import { Menu, MenuContent, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "@/components/ui/overlays";
 import { IconButton } from "@/components/ui/primitives";
 import { shellCopy } from "@/lib/data/copy/shell";
-import {
-  THEME_CHOICES,
-  getThemeChoice,
-  setThemeChoice,
-  subscribePreferences,
-  type ThemeChoice,
-} from "@/lib/theme";
+import { getThemeChoice, subscribePreferences, type ThemeChoice } from "@/lib/theme";
 
-const ICONS = { light: SunIcon, dark: MoonIcon, system: SystemIcon } satisfies Record<ThemeChoice, unknown>;
+export const THEME_ICONS = { light: SunIcon, dark: MoonIcon, system: SystemIcon } satisfies Record<ThemeChoice, unknown>;
 
-export function ThemeToggle() {
+function ThemeButton({ onClick }: { onClick?: () => void }) {
   const choice = useSyncExternalStore(subscribePreferences, getThemeChoice, () => "system" as const);
-  const Icon = ICONS[choice];
+  const Icon = THEME_ICONS[choice];
   return (
-    <Menu>
-      <MenuTrigger asChild>
-        <IconButton label={shellCopy.theme}>
-          <Icon />
-        </IconButton>
-      </MenuTrigger>
-      <MenuContent aria-label={shellCopy.theme}>
-        <MenuRadioGroup value={choice} onValueChange={(value) => setThemeChoice(value as ThemeChoice)}>
-          {THEME_CHOICES.map((option) => {
-            const OptionIcon = ICONS[option];
-            return (
-              <MenuRadioItem key={option} value={option}>
-                <OptionIcon className="text-ink-muted" />
-                {shellCopy.themes[option]}
-              </MenuRadioItem>
-            );
-          })}
-        </MenuRadioGroup>
-      </MenuContent>
-    </Menu>
+    <IconButton label={shellCopy.theme} aria-haspopup="menu" onClick={onClick}>
+      <Icon />
+    </IconButton>
   );
+}
+
+const ThemeMenu = dynamic(() => import("./ThemeMenu"), { ssr: false, loading: () => <ThemeButton /> });
+
+/** A plain button until first used, so the menu's code is not part of the first load. */
+export function ThemeToggle() {
+  const [used, setUsed] = useState(false);
+  return used ? <ThemeMenu /> : <ThemeButton onClick={() => setUsed(true)} />;
 }
