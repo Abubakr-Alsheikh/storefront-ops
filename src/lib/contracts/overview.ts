@@ -24,8 +24,11 @@ export const seriesPoint = z.object({
   start: isoInstant,
   revenueCents: z.number().int(),
   orders: z.number().int(),
+  sessions: z.number().int(),
   /** The matching bucket of the previous period, null past its end. */
   previousRevenueCents: z.number().int().nullable(),
+  previousOrders: z.number().int().nullable(),
+  previousSessions: z.number().int().nullable(),
 });
 export type SeriesPoint = z.infer<typeof seriesPoint>;
 

@@ -5,6 +5,7 @@ import {
   formatDateTime,
   formatDayMonth,
   formatDelta,
+  formatKpiMoney,
   formatMoney,
   formatNumber,
   formatOrderNumber,
@@ -24,6 +25,8 @@ describe("money and numbers", () => {
     expect(formatMoney(481250, { whole: true })).toBe("€4,813");
     expect(formatMoney(481250, { compact: true })).toBe("€4.8k");
     expect(formatMoney(1_234_567_00, { compact: true })).toBe("€1.2m");
+    expect(formatKpiMoney(8285)).toBe("€82.85");
+    expect(formatKpiMoney(4812000)).toBe("€48,120");
   });
 
   it("uses a true minus sign for negatives", () => {

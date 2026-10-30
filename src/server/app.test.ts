@@ -92,6 +92,9 @@ describe("GET /api/overview", () => {
     expect(o.series).toHaveLength(11);
     expect(o.series.reduce((s, p) => s + p.orders, 0)).toBe(today.n);
     expect(o.series.every((p) => p.previousRevenueCents !== null)).toBe(true);
+    expect(o.series.every((p) => p.sessions > 0 && (p.previousSessions ?? 0) > 0)).toBe(true);
+    const yesterdayOrders = o.series.reduce((s, p) => s + (p.previousOrders ?? 0), 0);
+    expect(yesterdayOrders).toBe(o.kpis.orders.previous);
 
     expect(o.statuses.reduce((s, x) => s + x.orders, 0)).toBe(today.n);
     expect(o.topProducts).toHaveLength(5);

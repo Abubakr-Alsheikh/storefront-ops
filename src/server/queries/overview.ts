@@ -4,9 +4,8 @@ import type { CountryCode } from "@/lib/data/countries";
 import { productById, variantById } from "@/lib/data/catalogue";
 import { ORDER_STATUSES, type OrderStatus } from "@/lib/domain";
 import { RETENTION_DAYS, type ResolvedRange } from "@/lib/ranges";
-import { daySessionsUntil } from "@/lib/sim/rate";
+import { daySessionsUntil, hourSessions } from "@/lib/sim/rate";
 import {
-  addZonedDays,
   dayKeyFromNumber,
   dayNumberFromKey,
   startOfDayNumber,
@@ -108,6 +107,12 @@ function sum(days: Map<number, { orders: number; revenue: number; sessions: numb
   return { orders, revenue, sessions, days: days.size };
 }
 
+/** Sessions in the hour starting at `start`, pro rata when the period ends inside it. */
+function sessionsInHour(start: number, periodEnd: number): number {
+  const share = Math.min(1, (periodEnd - start) / HOUR_MS);
+  return Math.round(hourSessions(start / HOUR_MS) * share);
+}
+
 async function hourlySeries(db: Db, range: ResolvedRange): Promise<SeriesPoint[]> {
   const bucket = async (from: number, to: number) => {
     const list = await rows<{ hour: string | Date; orders: number; revenue: number }>(
@@ -123,18 +128,33 @@ async function hourlySeries(db: Db, range: ResolvedRange): Promise<SeriesPoint[]
     bucket(range.current.from, range.current.to),
     bucket(range.previous.from, range.previous.to),
   ]);
+  // Yesterday may have had 23 or 25 hours, so match it by local hour; a
+  // repeated hour counts once, in full.
+  const byLocalHour = new Map<number, { orders: number; revenue: number; sessions: number }>();
+  for (let start = range.previous.from; start < range.previous.to; start += HOUR_MS) {
+    const hour = zonedParts(start).hour;
+    const entry = byLocalHour.get(hour) ?? { orders: 0, revenue: 0, sessions: 0 };
+    const row = previous.get(start);
+    entry.orders += row?.orders ?? 0;
+    entry.revenue += row?.revenue ?? 0;
+    entry.sessions += sessionsInHour(start, range.previous.to);
+    byLocalHour.set(hour, entry);
+  }
+
   const points: SeriesPoint[] = [];
   const dayEnd = startOfDayNumber(dayOf(range.current.from) + 1);
   // Lisbon's offset is whole hours, so UTC hours are local hours.
   for (let start = range.current.from; start < Math.min(range.current.to, dayEnd); start += HOUR_MS) {
-    const prevStart = addZonedDays(start, -1);
     const now = current.get(start);
-    const before = previous.get(prevStart);
+    const before = byLocalHour.get(zonedParts(start).hour);
     points.push({
       start: iso(start),
       revenueCents: now?.revenue ?? 0,
       orders: now?.orders ?? 0,
-      previousRevenueCents: prevStart < range.previous.to ? (before?.revenue ?? 0) : null,
+      sessions: sessionsInHour(start, range.current.to),
+      previousRevenueCents: before?.revenue ?? null,
+      previousOrders: before?.orders ?? null,
+      previousSessions: before?.sessions ?? null,
     });
   }
   return points;
@@ -165,7 +185,10 @@ export async function getOverview(db: Db, range: ResolvedRange, now: number): Pr
               start: iso(startOfDayNumber(d)),
               revenueCents: currentDays.get(d)?.revenue ?? 0,
               orders: currentDays.get(d)?.orders ?? 0,
+              sessions: currentDays.get(d)?.sessions ?? 0,
               previousRevenueCents: prev ? prev.revenue : null,
+              previousOrders: prev ? prev.orders : null,
+              previousSessions: prev ? prev.sessions : null,
             };
           }),
         ),

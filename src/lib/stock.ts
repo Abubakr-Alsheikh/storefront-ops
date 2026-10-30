@@ -9,8 +9,11 @@ export type StockState = (typeof STOCK_STATES)[number];
 /** Velocity looks back this many days. */
 export const VELOCITY_WINDOW_DAYS = 14;
 
-/** Under this many days of cover a variant is running low. */
-export const LOW_COVER_DAYS = 7;
+/**
+ * Under this many days of cover a variant is running low. Suppliers deliver
+ * weekly, so a week's cover is normal late in the week; five days is a warning.
+ */
+export const LOW_COVER_DAYS = 5;
 
 /** Average units sold per day over the window. */
 export function velocityPerDay(unitsInWindow: number, windowDays = VELOCITY_WINDOW_DAYS): number {
@@ -26,7 +29,7 @@ export function daysOfCover(onHand: number, perDay: number): number | null {
 
 /**
  * Out when nothing is on the shelf (negative stock is units on backorder),
- * low when cover drops under a week, in stock otherwise.
+ * low when cover drops under five days, in stock otherwise.
  */
 export function stockState(onHand: number, perDay: number): StockState {
   if (onHand <= 0) return "out";

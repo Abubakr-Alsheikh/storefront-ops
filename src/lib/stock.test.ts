@@ -17,8 +17,8 @@ describe("stock maths", () => {
   it("flags out, low and in stock", () => {
     expect(stockState(0, 2)).toBe("out");
     expect(stockState(-4, 2)).toBe("out");
-    expect(stockState(13, 2)).toBe("low");
-    expect(stockState(14, 2)).toBe("in_stock");
+    expect(stockState(9, 2)).toBe("low");
+    expect(stockState(10, 2)).toBe("in_stock");
     expect(stockState(3, 0)).toBe("in_stock");
   });
 });

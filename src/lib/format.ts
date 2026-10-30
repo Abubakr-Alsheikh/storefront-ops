@@ -61,6 +61,11 @@ export function formatMoney(cents: number, options: MoneyOptions = {}): string {
   return text.replace("-", MINUS);
 }
 
+/** KPI cards drop the cents from €10,000 up: "€48,120", "€82.85". */
+export function formatKpiMoney(cents: number): string {
+  return formatMoney(cents, { whole: cents >= 1_000_000 });
+}
+
 /** 125000 → "125,000". */
 export function formatNumber(value: number): string {
   return integer.format(value).replace("-", MINUS);
