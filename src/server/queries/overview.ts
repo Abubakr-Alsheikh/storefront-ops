@@ -13,6 +13,7 @@ import {
   zonedParts,
 } from "@/lib/tz";
 import { rows, type Db } from "../db/client";
+import { readSimState } from "../sim/catchUp";
 import { countLowStock } from "./inventory";
 
 /**
@@ -153,7 +154,7 @@ export async function getOverview(db: Db, range: ResolvedRange, now: number): Pr
   const daysFrom = dayKeyFromNumber(firstDay);
   const daysTo = dayKeyFromNumber(lastDay);
 
-  const [series, statusRows, variantRows, countryRows, lowStockVariants] = await Promise.all([
+  const [series, statusRows, variantRows, countryRows, lowStockVariants, state] = await Promise.all([
     range.granularity === "hour"
       ? hourlySeries(db, range)
       : Promise.resolve(
@@ -186,6 +187,7 @@ export async function getOverview(db: Db, range: ResolvedRange, now: number): Pr
         GROUP BY country ORDER BY revenue DESC, country`,
     ),
     countLowStock(db, now),
+    readSimState(db),
   ]);
 
   const statusCounts = new Map(statusRows.map((r) => [r.status as OrderStatus, r.orders]));
@@ -244,6 +246,7 @@ export async function getOverview(db: Db, range: ResolvedRange, now: number): Pr
       share: countryRevenue ? r.revenue / countryRevenue : 0,
     })),
     lowStockVariants,
-    asOf: iso(now),
+    // Not `now`: a read may be served while a long catch-up is still running.
+    asOf: iso(Math.min(now, state?.materialisedUntil.getTime() ?? now)),
   };
 }

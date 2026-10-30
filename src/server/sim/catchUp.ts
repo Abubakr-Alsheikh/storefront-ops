@@ -62,7 +62,7 @@ export interface CatchUpResult {
 export async function catchUp(
   db: Db,
   now: number = Date.now(),
-  { capMs = CATCH_UP_CAP_MS }: { capMs?: number } = {},
+  { capMs = CATCH_UP_CAP_MS, advance = true }: { capMs?: number; advance?: boolean } = {},
 ): Promise<CatchUpResult> {
   const state = await readSimState(db);
   if (!state) throw new NotSeededError();
@@ -70,7 +70,9 @@ export async function catchUp(
 
   const from = Math.max(state.materialisedUntil.getTime(), now - capMs);
   const inserted = from < now ? await materialiseRange(db, from, now, now) : 0;
-  const moved = await advanceLifecycles(db, now);
+  // The live feed ticks every 2 s; statuses move on a scale of hours, so it
+  // advances them far less often than it inserts orders.
+  const moved = advance ? await advanceLifecycles(db, now) : 0;
   await markMaterialised(db, now);
   return { from, to: now, inserted, moved };
 }
