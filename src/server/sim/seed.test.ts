@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { TEST_NOW, seededTestDb } from "@/test/db";
 import { createPgliteDb, rows, type Db } from "../db/client";
-import { AlreadySeededError, seedDatabase } from "./seed";
+import { AlreadySeededError, seedDatabase, withRetry } from "./seed";
 
 async function fingerprint(db: Db) {
   const [orders] = await rows(
@@ -23,6 +23,41 @@ async function fingerprint(db: Db) {
   return { orders, stock, stats };
 }
 
+describe("withRetry", () => {
+  const dropped = () => {
+    const error = new Error("Failed query", { cause: new Error("fetch failed") });
+    return Object.assign(error, { detail: "x" });
+  };
+
+  it("retries a lost connection, and nothing else", async () => {
+    let calls = 0;
+    const result = await withRetry(
+      async () => {
+        if (++calls < 3) throw dropped();
+        return "done";
+      },
+      { delaysMs: [0, 0, 0] },
+    );
+    expect({ result, calls }).toEqual({ result: "done", calls: 3 });
+
+    let refused = 0;
+    await expect(
+      withRetry(
+        async () => {
+          refused++;
+          throw new Error("relation does not exist");
+        },
+        { delaysMs: [0, 0] },
+      ),
+    ).rejects.toThrow("relation");
+    expect(refused).toBe(1);
+  });
+
+  it("gives up after the last delay", async () => {
+    await expect(withRetry(async () => { throw dropped(); }, { delaysMs: [0] })).rejects.toThrow();
+  });
+});
+
 describe("seedDatabase", () => {
   it("is deterministic: two fresh seeds are identical", async () => {
     const a = await seededTestDb();
@@ -31,6 +66,15 @@ describe("seedDatabase", () => {
     expect(fa.orders.n).toBeGreaterThan(4000);
     expect(await fingerprint(b.db)).toEqual(fa);
     await Promise.all([a.close(), b.close()]);
+  }, 60_000);
+
+  it("resumes an interrupted seed and ends where a full one would", async () => {
+    const full = await seededTestDb(TEST_NOW, 3);
+    const cut = await seededTestDb(TEST_NOW - 86_400_000, 2);
+    const report = await seedDatabase(cut.db, { now: TEST_NOW, resume: true });
+    expect(report.orders).toBeGreaterThan(1000);
+    expect((await fingerprint(cut.db)).orders).toEqual((await fingerprint(full.db)).orders);
+    await Promise.all([full.close(), cut.close()]);
   }, 60_000);
 
   it("refuses to seed twice unless forced", async () => {

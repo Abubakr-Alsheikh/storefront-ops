@@ -14,8 +14,8 @@ import {
   simState,
   variants,
 } from "../db/schema";
-import { readSimState } from "./catchUp";
-import { materialiseRange } from "./materialise";
+import { NotSeededError, markMaterialised, readSimState } from "./catchUp";
+import { advanceLifecycles, materialiseRange } from "./materialise";
 
 /**
  * The seed (DATA.md §4): catalogue, then `days` whole days of orders up to
@@ -37,6 +37,8 @@ export interface SeedOptions {
   days?: number;
   /** Wipe an existing database first. */
   force?: boolean;
+  /** Finish an interrupted seed: continue from the stored high-water mark. */
+  resume?: boolean;
   onProgress?: (message: string) => void;
 }
 
@@ -161,61 +163,102 @@ export function simulatedRollups(firstDay: number, endDay: number) {
   };
 }
 
+/** A dropped connection, as opposed to a query the database refused. */
+function isTransient(error: unknown): boolean {
+  for (let e = error; e instanceof Error; e = e.cause) {
+    if (/fetch failed|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up/i.test(e.message)) return true;
+    if ("code" in e && /ECONNRESET|ETIMEDOUT|EAI_AGAIN/.test(String(e.code))) return true;
+  }
+  return false;
+}
+
+/**
+ * Retries work that lost its connection, backing off between tries. Only for
+ * idempotent work: a reset can arrive after the server has committed.
+ */
+export async function withRetry<T>(
+  work: () => Promise<T>,
+  { delaysMs = [1000, 2000, 5000, 10_000, 20_000], onRetry = () => {} }: {
+    delaysMs?: number[];
+    onRetry?: (error: unknown) => void;
+  } = {},
+): Promise<T> {
+  for (const delay of delaysMs) {
+    try {
+      return await work();
+    } catch (error) {
+      if (!isTransient(error)) throw error;
+      onRetry(error);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+  return work();
+}
+
 async function insertChunks<T>(rowsToInsert: T[], size: number, insert: (chunk: T[]) => Promise<unknown>) {
   for (let i = 0; i < rowsToInsert.length; i += size) await insert(rowsToInsert.slice(i, i + size));
 }
 
 export async function seedDatabase(db: Db, options: SeedOptions): Promise<SeedReport> {
   const started = performance.now();
-  const { now, days = 90, force = false } = options;
+  const { now, days = 90, force = false, resume = false } = options;
   const log = options.onProgress ?? (() => {});
 
-  if (await readSimState(db)) {
+  const state = await readSimState(db);
+  if (resume && !state) throw new NotSeededError();
+  if (state && !resume) {
     if (!force) throw new AlreadySeededError();
     log("Wiping the existing data");
     await wipe(db);
   }
 
-  log("Writing the catalogue");
-  await seedCatalogue(db);
-
   const today = zonedParts(now).dayNumber;
   const firstOrderDay = today - days;
-  const from = startOfDayNumber(firstOrderDay);
+  const from = resume && state ? state.materialisedUntil.getTime() : startOfDayNumber(firstOrderDay);
+  let historyDays = 0;
 
-  // Mark the state first: a catch-up that starts mid-seed then fails fast
-  // on the version check instead of finding no state.
-  await db
-    .insert(simState)
-    .values({ id: 1, simVersion: SIM_VERSION, materialisedUntil: new Date(from) })
-    .onConflictDoNothing();
+  if (!resume) {
+    log("Writing the catalogue");
+    await seedCatalogue(db);
 
-  log(`Writing ${days} days of rollups from the simulator`);
-  const history = simulatedRollups(firstOrderDay - days, firstOrderDay);
-  await insertChunks(history.daily, 100, (chunk) =>
-    db.insert(dailyStats).values(chunk).onConflictDoNothing(),
-  );
-  await insertChunks(history.variants, 1000, (chunk) =>
-    db.insert(dailyVariantStats).values(chunk).onConflictDoNothing(),
-  );
-  await insertChunks(history.countries, 1000, (chunk) =>
-    db.insert(dailyCountryStats).values(chunk).onConflictDoNothing(),
-  );
+    // Mark the state first: a catch-up that starts mid-seed then fails fast
+    // on the version check instead of finding no state.
+    await db
+      .insert(simState)
+      .values({ id: 1, simVersion: SIM_VERSION, materialisedUntil: new Date(from) })
+      .onConflictDoNothing();
+
+    log(`Writing ${days} days of rollups from the simulator`);
+    const history = simulatedRollups(firstOrderDay - days, firstOrderDay);
+    historyDays = history.daily.length;
+    await insertChunks(history.daily, 100, (chunk) =>
+      db.insert(dailyStats).values(chunk).onConflictDoNothing(),
+    );
+    await insertChunks(history.variants, 1000, (chunk) =>
+      db.insert(dailyVariantStats).values(chunk).onConflictDoNothing(),
+    );
+    await insertChunks(history.countries, 1000, (chunk) =>
+      db.insert(dailyCountryStats).values(chunk).onConflictDoNothing(),
+    );
+  }
 
   log(`Writing orders from ${new Date(from).toISOString()} to ${new Date(now).toISOString()}`);
   let orders = 0;
   // Day by day, so progress shows and the high-water mark moves as it goes.
-  for (let d = firstOrderDay; d <= today; d++) {
+  for (let d = zonedParts(from).dayNumber; d <= today; d++) {
     const dayFrom = Math.max(from, startOfDayNumber(d));
     const dayTo = Math.min(now, startOfDayNumber(d + 1));
     if (dayFrom >= dayTo) continue;
-    orders += await materialiseRange(db, dayFrom, dayTo, now);
-    await db
-      .update(simState)
-      .set({ materialisedUntil: new Date(dayTo) })
-      .where(sql`${simState.id} = 1`);
+    // A whole day can be retried: inserts, sessions and restocks are idempotent.
+    orders += await withRetry(() => materialiseRange(db, dayFrom, dayTo, now), {
+      onRetry: (error) => log(`  connection lost, retrying: ${error instanceof Error ? error.message.split("\n")[0].slice(0, 80) : error}`),
+    });
+    await withRetry(() => markMaterialised(db, dayTo));
     log(`  ${dayKeyFromNumber(d)}: ${orders.toLocaleString("en-GB")} orders so far`);
   }
 
-  return { from, to: now, orders, statsOnlyDays: history.daily.length, ms: performance.now() - started };
+  // Orders written before an interruption hold their status as of that run.
+  if (resume) await withRetry(() => advanceLifecycles(db, now));
+
+  return { from, to: now, orders, statsOnlyDays: historyDays, ms: performance.now() - started };
 }

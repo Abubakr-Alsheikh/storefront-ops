@@ -2,6 +2,7 @@
 //
 //   npm run db:seed                       local PGlite in .pglite/
 //   npm run db:seed -- --force            wipe and reseed
+//   npm run db:seed -- --resume           finish a seed that was interrupted
 //   npm run db:seed -- --days=3 --now=2026-10-26T10:30:00Z
 //
 // With DATABASE_URL in .env.local it seeds Neon instead, after migrating.
@@ -20,7 +21,7 @@ const args = new Map(
 const days = Number(args.get("days") ?? 90);
 const now = args.has("now") ? Date.parse(args.get("now") ?? "") : Date.now();
 if (!Number.isFinite(now) || !(days > 0)) {
-  console.error("Usage: npm run db:seed -- [--force] [--days=90] [--now=ISO]");
+  console.error("Usage: npm run db:seed -- [--force | --resume] [--days=90] [--now=ISO]");
   process.exit(1);
 }
 
@@ -33,6 +34,7 @@ const report = await seedDatabase(handle.db, {
   now,
   days,
   force: args.has("force"),
+  resume: args.has("resume"),
   onProgress: (message) => console.log(message),
 });
 
