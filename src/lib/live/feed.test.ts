@@ -138,7 +138,7 @@ describe("LiveFeed", () => {
   it("treats a silent connection as a failure", () => {
     const { feed, streams } = setup();
     feed.start();
-    vi.advanceTimersByTime(60_000);
+    vi.advanceTimersByTime(40_000);
     expect(streams[0].closed).toBe(true);
     expect(feed.getState()).toBe("reconnecting");
   });

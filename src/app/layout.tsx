@@ -23,11 +23,20 @@ export const metadata: Metadata = {
   description: `${site.tagline}. ${site.concept}.`,
 };
 
+/**
+ * Netlify's free tier adds a line break and a comment to <head> on production
+ * sites. React cannot match a whitespace text node there, so it throws away the
+ * server HTML and renders the whole page again (error #418). This runs before
+ * hydration and takes those nodes back out.
+ */
+const HEAD_CLEANUP_SCRIPT = "for(const n of[...document.head.childNodes])if(n.nodeType===3&&!n.data.trim())n.remove()";
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     // The inline script sets data attributes on <html> before hydration.
     <html lang="en" suppressHydrationWarning className={`${plexSans.variable} ${plexMono.variable} antialiased`}>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: HEAD_CLEANUP_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: PREFERENCES_SCRIPT }} />
       </head>
       <body>

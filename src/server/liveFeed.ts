@@ -8,9 +8,9 @@ import { newestOrderNumber, ordersAfter } from "./queries/orders";
 import { catchUp } from "./sim/catchUp";
 
 /**
- * The live order feed over server-sent events (DATA.md §8). Netlify functions
- * cannot hold a connection for long, so a stream lasts about 45 seconds, then
- * tells the client to reconnect; EventSource resumes with `Last-Event-ID`,
+ * The live order feed over server-sent events (DATA.md §8). Netlify cuts a
+ * function's response at 30 seconds, so a stream lasts 25, then tells the
+ * client to reconnect; EventSource resumes with `Last-Event-ID`,
  * and the client sees one unbroken feed.
  */
 
@@ -24,7 +24,7 @@ export interface LiveFeedTiming {
 }
 
 const DEFAULT_TIMING: LiveFeedTiming = {
-  durationMs: 45_000,
+  durationMs: 25_000,
   tickMs: 2_000,
   pingEveryMs: 15_000,
   advanceEveryMs: 60_000,

@@ -3,7 +3,7 @@ import type { LiveState } from "@/lib/data/copy/shell";
 
 /**
  * The browser's end of the live feed (DATA.md §8), free of React and the DOM so
- * a test can drive it with a fake stream. A stream lasts about 45 seconds, so
+ * a test can drive it with a fake stream. A stream lasts 25 seconds, so
  * the feed reopens every one itself from the last order it saw instead of
  * relying on EventSource's own reconnect: that one reports a clean end as an
  * error, and knows no position until the first order event.
@@ -30,8 +30,8 @@ const FAILURES_BEFORE_POLLING = 3;
 const POLL_MS = 10_000;
 /** While polling, try the stream again every this many polls (5 minutes). */
 const POLLS_BEFORE_RETRY = 30;
-/** A stream ends itself by 45 s. Silence past this means a dead connection. */
-const STREAM_TIMEOUT_MS = 60_000;
+/** A stream ends itself by 25 s. Silence past this means a dead connection. */
+const STREAM_TIMEOUT_MS = 40_000;
 const SEEN_MAX = 500;
 /** Events of one tick arrive together; hand them over as one batch. */
 const FLUSH_MS = 50;
