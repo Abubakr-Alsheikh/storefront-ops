@@ -148,6 +148,10 @@ export const liveKpi = z.object({
 });
 export type LiveKpi = z.infer<typeof liveKpi>;
 
+/** The `ready` event, first on every stream: the order number it continues from. */
+export const liveReady = z.object({ last: z.number().int() });
+export type LiveReady = z.infer<typeof liveReady>;
+
 export const orderNumberParam = z.object({
   number: z.coerce.number().int().min(100001).max(2_147_483_647),
 });

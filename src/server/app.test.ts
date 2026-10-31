@@ -434,6 +434,9 @@ describe("GET /api/stream/orders", () => {
     const fresh = parse(await (await feed().request("/api/stream/orders")).text());
     expect(fresh.filter((e) => e.event === "order")).toEqual([]);
     const [{ max }] = await rows<{ max: number }>(handle.db, sql`select max(id)::int max from orders`);
+    // The client must know where it stands even if no order arrives before the stream ends.
+    expect(fresh[0]).toMatchObject({ event: "ready", id: String(max) });
+    expect(JSON.parse(fresh[0].data ?? "{}")).toEqual({ last: max });
     const slow = createApp({
       getDbHandle: async () => handle,
       now: () => TEST_NOW,

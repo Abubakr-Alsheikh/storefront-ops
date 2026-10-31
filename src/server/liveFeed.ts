@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import type { SSEStreamingApi } from "hono/streaming";
-import type { LiveKpi } from "@/lib/contracts/orders";
+import type { LiveKpi, LiveReady } from "@/lib/contracts/orders";
 import { dayKeyAt } from "@/lib/tz";
 import type { Db } from "./db/client";
 import { dailyStats } from "./db/schema";
@@ -69,6 +69,7 @@ export async function runLiveFeed(stream: SSEStreamingApi, options: LiveFeedOpti
   let lastAdvance = 0;
   let lastKpi = "";
   let last = options.after ?? null;
+  let ready = false;
 
   do {
     // A hiccup must not end the stream silently: log it and try next tick.
@@ -80,6 +81,11 @@ export async function runLiveFeed(stream: SSEStreamingApi, options: LiveFeedOpti
         if (advance) lastAdvance = tick;
       }
       last ??= await newestOrderNumber(db);
+      if (!ready) {
+        const data: LiveReady = { last };
+        await stream.writeSSE({ id: String(last), event: "ready", data: JSON.stringify(data) });
+        ready = true;
+      }
       for (const order of await ordersAfter(db, last, MAX_ORDERS_PER_TICK)) {
         await stream.writeSSE({ id: String(order.number), event: "order", data: JSON.stringify(order) });
         last = order.number;
