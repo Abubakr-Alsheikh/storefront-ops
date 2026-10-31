@@ -4,8 +4,9 @@ import { columnVisibilityFeature, createColumnHelper, rowSortingFeature, tableFe
 import { useVirtualizer } from "@tanstack/react-virtual";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type RefObject } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { useIsMobile } from "@/components/ui/useIsMobile";
 import { cx } from "@/lib/cx";
 import type { OrderRow } from "@/lib/contracts/orders";
 import { COUNTRIES } from "@/lib/data/countries";
@@ -61,6 +62,7 @@ const SKELETON_ROWS = 30;
 const CELL = "flex min-w-0 items-center px-3";
 const STICKY_LEFT = "sticky left-0 z-[1] bg-inherit";
 const STICKY_ORDER = "sticky left-10 z-[1] bg-inherit";
+const STICKY_ORDER_ONLY = "sticky left-0 z-[1] bg-inherit";
 const STICKY_RIGHT = "sticky right-0 z-[1] bg-inherit border-l border-line";
 
 const placed = (iso: string) => {
@@ -124,6 +126,7 @@ interface RowProps {
   mobile: boolean;
   selected: boolean;
   cursor: boolean;
+  selectable: boolean;
   onToggle: (order: OrderRow) => void;
   onOpen: (index: number, number: number) => void;
 }
@@ -131,7 +134,7 @@ interface RowProps {
 const ROW_BASE = "absolute top-0 left-0 w-full border-b border-line text-sm text-ink";
 
 /** Memoised: rows that stay on screen do not re-render while the list scrolls. */
-const Row = memo(function Row({ index, start, height, order, visible, template, mobile, selected, cursor, onToggle, onOpen }: RowProps) {
+const Row = memo(function Row({ index, start, height, order, visible, template, mobile, selected, cursor, selectable, onToggle, onOpen }: RowProps) {
   const style = { height, transform: `translateY(${start}px)` };
   if (!order) {
     return (
@@ -148,7 +151,7 @@ const Row = memo(function Row({ index, start, height, order, visible, template, 
           </div>
         ) : (
           <>
-            <div role="gridcell" />
+            {selectable ? <div role="gridcell" /> : null}
             {visible.map((id) => (
               <div key={id} role="gridcell" className={CELL}>
                 <div className="h-3.5 w-3/4 rounded bg-surface-2" />
@@ -160,7 +163,7 @@ const Row = memo(function Row({ index, start, height, order, visible, template, 
     );
   }
 
-  const checkbox = (
+  const checkbox = !selectable ? null : (
     <input
       type="checkbox"
       tabIndex={-1}
@@ -214,12 +217,12 @@ const Row = memo(function Row({ index, start, height, order, visible, template, 
       onClick={() => onOpen(index, order.number)}
       className={cx(ROW_BASE, tone, "grid cursor-pointer")}
     >
-      <div role="gridcell" className={cx("flex items-center justify-center", STICKY_LEFT)}>{checkbox}</div>
+      {selectable ? <div role="gridcell" className={cx("flex items-center justify-center", STICKY_LEFT)}>{checkbox}</div> : null}
       {visible.map((id) => (
         <div
           key={id}
           role="gridcell"
-          className={cx(CELL, RIGHT_ALIGNED.has(id) && "justify-end", id === "status" && STICKY_RIGHT, id === "number" && STICKY_ORDER)}
+          className={cx(CELL, RIGHT_ALIGNED.has(id) && "justify-end", id === "status" && STICKY_RIGHT, id === "number" && (selectable ? STICKY_ORDER : STICKY_ORDER_ONLY))}
         >
           {renderCell(id, order, index, onOpen)}
         </div>
@@ -227,14 +230,6 @@ const Row = memo(function Row({ index, start, height, order, visible, template, 
     </div>
   );
 });
-
-const mediaSubscribe = (notify: () => void) => {
-  const media = window.matchMedia("(max-width: 767px)");
-  media.addEventListener("change", notify);
-  return () => media.removeEventListener("change", notify);
-};
-const useIsMobile = () =>
-  useSyncExternalStore(mediaSubscribe, () => window.matchMedia("(max-width: 767px)").matches, () => false);
 
 export interface OrdersGridProps {
   total: number | undefined;
@@ -248,13 +243,16 @@ export interface OrdersGridProps {
   onSort: (sort: OrderSort, dir: "asc" | "desc") => void;
   hidden: readonly string[];
   density: Density;
-  selected: ReadonlyMap<number, OrderStatus>;
-  onToggle: (order: OrderRow) => void;
-  onClearSelection: () => void;
-  searchRef: RefObject<HTMLInputElement | null>;
+  /** Without these the rows have no checkboxes: a read-only list of orders. */
+  selected?: ReadonlyMap<number, OrderStatus>;
+  onToggle?: (order: OrderRow) => void;
+  onClearSelection?: () => void;
 }
 
-export function OrdersGrid({ total, getRow, ensureRange, resultKey, stale, sort, dir, onSort, hidden, density, selected, onToggle, onClearSelection, searchRef }: OrdersGridProps) {
+const NOOP = () => {};
+
+export function OrdersGrid({ total, getRow, ensureRange, resultKey, stale, sort, dir, onSort, hidden, density, selected, onToggle = NOOP, onClearSelection = NOOP }: OrdersGridProps) {
+  const selectable = selected !== undefined;
   const router = useRouter();
   const mobile = useIsMobile();
   const scroller = useRef<HTMLDivElement>(null);
@@ -276,8 +274,12 @@ export function OrdersGrid({ total, getRow, ensureRange, resultKey, stale, sort,
   });
   const leaf = table.getVisibleLeafColumns();
   const visible = useMemo(() => leaf.map((c) => c.id as ColumnId), [leaf]);
-  const template = useMemo(() => [SELECT_WIDTH, ...visible.map((id) => WIDTHS[id])].join(" "), [visible]);
-  const minWidth = visible.reduce((sum, id) => sum + MIN_WIDTHS[id], 40);
+  // With no customer column to take up the slack, status does.
+  const template = useMemo(() => {
+    const tracks = visible.map((id) => (id === "status" && !visible.includes("customer") ? "minmax(104px, 1fr)" : WIDTHS[id]));
+    return [...(selectable ? [SELECT_WIDTH] : []), ...tracks].join(" ");
+  }, [visible, selectable]);
+  const minWidth = visible.reduce((sum, id) => sum + MIN_WIDTHS[id], selectable ? 40 : 0);
 
   const rowHeight = mobile ? CARD_HEIGHT : ROW_HEIGHT[density];
   const count = total ?? SKELETON_ROWS;
@@ -321,18 +323,6 @@ export function OrdersGrid({ total, getRow, ensureRange, resultKey, stale, sort,
     [router],
   );
 
-  // `/` focuses search from anywhere but a text field.
-  useEffect(() => {
-    function onKey(event: globalThis.KeyboardEvent) {
-      const target = event.target as HTMLElement;
-      if (event.key !== "/" || event.metaKey || event.ctrlKey || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
-      event.preventDefault();
-      searchRef.current?.focus();
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [searchRef]);
-
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     const page = Math.max(1, Math.floor((scroller.current?.clientHeight ?? 0) / rowHeight) - 1);
     const moves: Record<string, number> = {
@@ -355,7 +345,7 @@ export function OrdersGrid({ total, getRow, ensureRange, resultKey, stale, sort,
     if (event.key === "Enter" && order) {
       event.preventDefault();
       openRow(cursor, order.number);
-    } else if (event.key === " " && order) {
+    } else if (event.key === " " && order && selectable) {
       event.preventDefault();
       onToggle(order);
     } else if (event.key === "Escape") {
@@ -380,9 +370,11 @@ export function OrdersGrid({ total, getRow, ensureRange, resultKey, stale, sort,
       {mobile ? null : (
         <div role="rowgroup" className="sticky top-0 z-[3]" style={{ minWidth }}>
           <div role="row" aria-rowindex={1} className="grid border-b border-line bg-surface-2" style={{ gridTemplateColumns: template, height: HEADER_HEIGHT }}>
-            <div role="columnheader" className={cx("flex items-center justify-center", STICKY_LEFT)}>
-              <span className="sr-only">{ordersCopy.selectHeader}</span>
-            </div>
+            {selectable ? (
+              <div role="columnheader" className={cx("flex items-center justify-center", STICKY_LEFT)}>
+                <span className="sr-only">{ordersCopy.selectHeader}</span>
+              </div>
+            ) : null}
             {headerGroup.headers.map((header) => {
               const id = header.column.id as ColumnId;
               const sorted = header.column.getIsSorted();
@@ -392,7 +384,7 @@ export function OrdersGrid({ total, getRow, ensureRange, resultKey, stale, sort,
                   key={header.id}
                   role="columnheader"
                   aria-sort={!header.column.getCanSort() ? undefined : sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : "none"}
-                  className={cx("flex min-w-0 items-center", RIGHT_ALIGNED.has(id) && "justify-end", id === "status" && STICKY_RIGHT, id === "number" && STICKY_ORDER)}
+                  className={cx("flex min-w-0 items-center", RIGHT_ALIGNED.has(id) && "justify-end", id === "status" && STICKY_RIGHT, id === "number" && (selectable ? STICKY_ORDER : STICKY_ORDER_ONLY))}
                 >
                   {header.column.getCanSort() ? (
                     <button
@@ -425,9 +417,10 @@ export function OrdersGrid({ total, getRow, ensureRange, resultKey, stale, sort,
             mobile={mobile}
             selected={(() => {
               const order = getRow(item.index);
-              return order ? selected.has(order.number) : false;
+              return order && selected ? selected.has(order.number) : false;
             })()}
             cursor={item.index === cursor}
+            selectable={selectable}
             onToggle={onToggle}
             onOpen={openRow}
           />

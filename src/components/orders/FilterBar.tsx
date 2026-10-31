@@ -1,53 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
-import { SearchIcon } from "@/components/ui/icons";
+import { useState } from "react";
 import { LazyPopover } from "@/components/ui/LazyPopover";
-import { Button, Input, Kbd } from "@/components/ui/primitives";
+import { Button, Input } from "@/components/ui/primitives";
+import { SearchBox } from "@/components/ui/SearchBox";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { COUNTRIES, COUNTRY_CODES } from "@/lib/data/countries";
 import { PAYMENT_LABELS, ordersCopy } from "@/lib/data/copy/orders";
 import { ORDER_STATUSES, PAYMENT_METHODS } from "@/lib/domain";
 import type { OrderFiltersApi } from "./useOrderFilters";
-
-const SEARCH_DEBOUNCE_MS = 250;
-
-function SearchBox({ value, onCommit, inputRef }: { value: string; onCommit: (q: string) => void; inputRef: RefObject<HTMLInputElement | null> }) {
-  const [text, setText] = useState(value);
-  const [committed, setCommitted] = useState(value);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
-  // The URL changed from elsewhere (Clear filters, a link): follow it.
-  if (value !== committed) {
-    setCommitted(value);
-    setText(value);
-  }
-  useEffect(() => () => clearTimeout(timer.current), []);
-
-  return (
-    <label className="relative block w-full md:w-80">
-      <span className="sr-only">{ordersCopy.searchPlaceholder}</span>
-      <SearchIcon className="pointer-events-none absolute top-2 left-2 text-ink-muted" />
-      <Input
-        ref={inputRef}
-        type="search"
-        value={text}
-        placeholder={ordersCopy.searchPlaceholder}
-        className="truncate pr-8 pl-8"
-        onChange={(event) => {
-          const next = event.target.value;
-          setText(next);
-          clearTimeout(timer.current);
-          timer.current = setTimeout(() => {
-            setCommitted(next);
-            onCommit(next);
-          }, SEARCH_DEBOUNCE_MS);
-        }}
-      />
-      <Kbd aria-hidden="true" className="pointer-events-none absolute top-1.5 right-1.5 max-md:hidden">/</Kbd>
-    </label>
-  );
-}
 
 function CheckList<T extends string>({ options, chosen, onChange, render }: { options: readonly T[]; chosen: readonly T[] | null; onChange: (next: T[] | null) => void; render: (option: T) => React.ReactNode }) {
   const set = new Set<T>(chosen ?? []);
@@ -129,11 +90,11 @@ function AmountFields({ min, max, onApply }: { min: number | null; max: number |
 
 const countBadge = (list: readonly unknown[] | null) => (list?.length ? String(list.length) : undefined);
 
-export function FilterBar({ filters, searchRef }: { filters: OrderFiltersApi; searchRef: RefObject<HTMLInputElement | null> }) {
+export function FilterBar({ filters }: { filters: OrderFiltersApi }) {
   const { state, setState } = filters;
   return (
     <div className="flex flex-col gap-2 md:flex-row md:items-center">
-      <SearchBox value={state.q ?? ""} inputRef={searchRef} onCommit={(q) => void setState({ q: q || null })} />
+      <SearchBox label={ordersCopy.searchPlaceholder} value={state.q ?? ""} onCommit={(q) => void setState({ q: q || null })} />
       {/* Below md the filters scroll sideways in their own row. */}
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 py-0.5 md:mx-0 md:overflow-visible md:px-0">
         <LazyPopover label={ordersCopy.filters.status} badge={countBadge(state.status)} className="w-48">

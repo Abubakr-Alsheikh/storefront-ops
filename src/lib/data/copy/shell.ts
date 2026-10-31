@@ -50,11 +50,8 @@ export const STATUS_LABELS: Record<OrderStatus, string> = {
   refunded: "Refunded",
 };
 
-/** Placeholders until each screen lands; every one of these goes away by M10. */
+/** The placeholder until Settings lands in M11. */
 export const stubCopy = {
   title: "This screen is next in the build.",
-  inventory: "Stock on hand, days of cover and restocking land here.",
-  customers: "Customers, segments and lifetime value land here.",
-  customer: "This customer's profile and order history land here.",
   settings: "Theme, table density and the demo reset explainer land here.",
 } as const;

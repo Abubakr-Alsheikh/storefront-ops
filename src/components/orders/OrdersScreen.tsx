@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 import { useNewOrderCount } from "@/components/LiveFeedProvider";
 import { LazyPopover } from "@/components/ui/LazyPopover";
 import { Button, EmptyState, Skeleton } from "@/components/ui/primitives";
@@ -103,7 +103,6 @@ export function OrdersScreen() {
 
   const density = useSyncExternalStore(subscribePreferences, getDensity, () => "comfortable" as const);
   const hidden = useSyncExternalStore(subscribePreferences, getHiddenColumns, () => NONE);
-  const searchRef = useRef<HTMLInputElement>(null);
 
   const [selected, setSelected] = useState<ReadonlyMap<number, OrderStatus>>(new Map());
   const toggle = useCallback((order: OrderRow) => {
@@ -124,7 +123,7 @@ export function OrdersScreen() {
 
   return (
     <div className="flex h-[calc(100dvh-6.5rem)] min-h-96 flex-col gap-3">
-      <FilterBar filters={filters} searchRef={searchRef} />
+      <FilterBar filters={filters} />
       <div className="flex h-8 shrink-0 items-center gap-3">
         <p aria-live="polite" className="min-w-0 truncate text-sm text-ink-muted tabular-nums">
           {total === undefined ? null : ordersCopy.count(total, hasFilters ? grandTotal.data : undefined)}
@@ -175,7 +174,6 @@ export function OrdersScreen() {
             selected={selected}
             onToggle={toggle}
             onClearSelection={clearSelection}
-            searchRef={searchRef}
           />
         )}
         {selected.size ? <BulkBar selected={selected} onClear={clearSelection} /> : null}

@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
+import { SEGMENT_LABELS, STOCK_LABELS } from "@/lib/data/copy/catalogue";
 import { STATUS_LABELS } from "@/lib/data/copy/shell";
 import type { OrderStatus } from "@/lib/domain";
+import type { Segment } from "@/lib/segments";
+import type { StockState } from "@/lib/stock";
 import { cx } from "@/lib/cx";
 
 export type BadgeTone = "accent" | "positive" | "negative" | "warning" | "neutral";
@@ -78,4 +81,28 @@ export function StatusBadge({ status, className }: { status: OrderStatus; classN
       {STATUS_LABELS[status]}
     </Badge>
   );
+}
+
+const STOCK: Record<StockState, { tone: BadgeTone; glyph: ReactNode }> = {
+  in_stock: { tone: "positive", glyph: <path d="m1 4.5 2 2 4-5" /> },
+  low: { tone: "warning", glyph: <path d="M4 1 7 7H1z" /> },
+  out: { tone: "negative", glyph: <><circle cx="4" cy="4" r="3" /><path d="m2 6 4-4" /></> },
+};
+
+export function StockBadge({ state }: { state: StockState }) {
+  const { tone, glyph } = STOCK[state];
+  return <Badge tone={tone} glyph={<Glyph>{glyph}</Glyph>}>{STOCK_LABELS[state]}</Badge>;
+}
+
+const SEGMENTS_LOOK: Record<Segment, { tone: BadgeTone; glyph: ReactNode }> = {
+  vip: { tone: "accent", glyph: <path d="M4 .8 5 3l2.4.3-1.7 1.6.4 2.3L4 6.1 1.9 7.2l.4-2.3L.6 3.3 3 3z" fill="currentColor" stroke="none" /> },
+  at_risk: { tone: "warning", glyph: <path d="M4 1 7 7H1z" /> },
+  returning: { tone: "positive", glyph: <path d="M3 1 1 3l2 2M1 3h3.5a2 2 0 0 1 0 4H3" /> },
+  new: { tone: "accent", glyph: <circle cx="4" cy="4" r="2.5" fill="currentColor" stroke="none" /> },
+  one_time: { tone: "neutral", glyph: <circle cx="4" cy="4" r="2.5" /> },
+};
+
+export function SegmentBadge({ segment }: { segment: Segment }) {
+  const { tone, glyph } = SEGMENTS_LOOK[segment];
+  return <Badge tone={tone} glyph={<Glyph>{glyph}</Glyph>}>{SEGMENT_LABELS[segment]}</Badge>;
 }

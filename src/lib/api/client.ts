@@ -18,6 +18,16 @@ export class ApiClientError extends Error {
   }
 }
 
+/** Set in the browser console to prove rollbacks: localStorage.setItem("storefront-fail-writes", "1"). */
+export function writeOptions() {
+  try {
+    if (localStorage.getItem("storefront-fail-writes")) return { headers: { "x-simulate-failure": "1" } };
+  } catch {
+    // Storage may be refused; writes then go through normally.
+  }
+  return undefined;
+}
+
 interface JsonResponse {
   ok: boolean;
   json(): Promise<unknown>;

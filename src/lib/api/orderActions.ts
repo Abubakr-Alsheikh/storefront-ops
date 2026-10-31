@@ -7,7 +7,7 @@ import { ordersCopy } from "@/lib/data/copy/orders";
 import { ERROR_MESSAGES } from "@/lib/data/copy/overview";
 import { ALLOWED_TRANSITIONS, type OrderStatus } from "@/lib/domain";
 import { showToast } from "@/lib/toast";
-import { ApiClientError, api, unwrap } from "./client";
+import { ApiClientError, api, unwrap, writeOptions } from "./client";
 import { queryKeys } from "./queryKeys";
 
 /**
@@ -15,16 +15,6 @@ import { queryKeys } from "./queryKeys";
  * the change, write it into every cached copy at once, restore the snapshot
  * on failure. Rows change in their cached pages; the table never refetches.
  */
-
-/** Set in the browser console to prove rollbacks: localStorage.setItem("storefront-fail-writes", "1"). */
-function writeOptions() {
-  try {
-    if (localStorage.getItem("storefront-fail-writes")) return { headers: { "x-simulate-failure": "1" } };
-  } catch {
-    // Storage may be refused; writes then go through normally.
-  }
-  return undefined;
-}
 
 function messageFor(error: unknown, number?: number): string {
   const code = error instanceof ApiClientError ? error.code : "internal";
