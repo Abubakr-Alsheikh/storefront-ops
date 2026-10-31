@@ -193,6 +193,11 @@ describe("GET /api/orders", () => {
     const frozen = await (await api.orders.$get({ query: { upTo: String(upTo) } })).json();
     expect(frozen.total).toBe(await count(sql`select count(*)::int n from orders where id <= ${upTo}`));
     expect(frozen.rows.every((r) => r.number <= upTo)).toBe(true);
+    const first = await (await api.orders.$get({ query: { limit: "1" } })).json();
+    expect(first.newest).toBe(max);
+    expect(frozen.newest).toBeNull();
+    const later = await (await api.orders.$get({ query: { offset: "10", limit: "1" } })).json();
+    expect(later.newest).toBeNull();
     const filtered = await (await api.orders.$get({ query: { upTo: String(upTo), country: "ES" } })).json();
     expect(filtered.total).toBe(
       await count(sql`select count(*)::int n from orders where id <= ${upTo} and country = 'ES'`),

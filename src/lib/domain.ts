@@ -17,6 +17,13 @@ export type OrderStatus = (typeof ORDER_STATUSES)[number];
 export const PAYMENT_METHODS = ["card", "paypal", "mbway", "klarna", "apple_pay"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
+/** Columns the orders API can sort by (a whitelist; DATA.md §7). */
+export const ORDER_SORTS = ["placed", "number", "customer", "total", "items", "status", "country"] as const;
+export type OrderSort = (typeof ORDER_SORTS)[number];
+
+/** Rows in one page of the orders table and API. */
+export const ORDERS_PAGE_SIZE = 200;
+
 /** How a simulated order's life ends. */
 export const PLAN_OUTCOMES = ["complete", "cancelled", "refunded"] as const;
 export type PlanOutcome = (typeof PLAN_OUTCOMES)[number];

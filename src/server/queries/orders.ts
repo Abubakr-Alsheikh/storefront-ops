@@ -157,18 +157,24 @@ export function ordersPageQuery(db: Db, query: OrdersQuery) {
 export async function listOrders(db: Db, query: OrdersQuery): Promise<OrdersPage> {
   let total: number;
   let page: RawRow[];
+  let newest: number | null = null;
   if (query.offset === 0) {
     // The first page cannot be in the far half: page and count in parallel.
-    const [rows0, [count]] = await Promise.all([ordersPageQuery(db, query), ordersTotalQuery(db, query)]);
+    const [rows0, [count], newestNumber] = await Promise.all([
+      ordersPageQuery(db, query),
+      ordersTotalQuery(db, query),
+      query.upTo ? null : newestOrderNumber(db),
+    ]);
     total = count?.total ?? 0;
     page = rows0;
+    newest = newestNumber;
   } else {
     total = (await ordersTotalQuery(db, query))[0]?.total ?? 0;
     const plan = planPage(query, total);
     page = plan.query.limit > 0 ? await ordersPageQuery(db, plan.query) : [];
     if (plan.reversed) page.reverse();
   }
-  return { rows: page.map(toOrderRow), total, offset: query.offset };
+  return { rows: page.map(toOrderRow), total, offset: query.offset, newest };
 }
 
 /** Orders newer than `after`, oldest first: what the live feed sends next. */

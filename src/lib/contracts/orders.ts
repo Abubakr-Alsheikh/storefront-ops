@@ -1,12 +1,19 @@
 import { z } from "zod";
 import { COUNTRY_CODES } from "@/lib/data/countries";
-import { ACTORS, EVENT_TYPES, ORDER_STATUSES, PAYMENT_METHODS } from "@/lib/domain";
+import {
+  ACTORS,
+  EVENT_TYPES,
+  ORDER_SORTS,
+  ORDER_STATUSES,
+  ORDERS_PAGE_SIZE,
+  PAYMENT_METHODS,
+  type OrderSort,
+} from "@/lib/domain";
 import { dayKey, isoInstant, queryInt, queryList, querySearch, sortDir } from "./common";
 
-export const ORDER_SORTS = ["placed", "number", "customer", "total", "items", "status", "country"] as const;
-export type OrderSort = (typeof ORDER_SORTS)[number];
+export { ORDER_SORTS, type OrderSort };
 
-export const MAX_PAGE_SIZE = 200;
+export const MAX_PAGE_SIZE = ORDERS_PAGE_SIZE;
 
 /**
  * Filters, sort and search for the orders table. The URL state (nuqs) and
@@ -76,6 +83,11 @@ export const ordersPage = z.object({
   /** Every order matching the filters, not just this page. */
   total: z.number().int(),
   offset: z.number().int(),
+  /**
+   * The newest order number overall, on the first page of an unfrozen query.
+   * The table sends it back as `upTo` for every later page.
+   */
+  newest: z.number().int().nullable(),
 });
 export type OrdersPage = z.infer<typeof ordersPage>;
 
