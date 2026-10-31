@@ -48,6 +48,22 @@ export const COUNTRIES: Record<CountryCode, Country> = {
   PL: { code: "PL", name: "Poland", share: 3, vatRate: 0.23, zone: "europe-far", cities: ["Warszawa", "Kraków", "Wrocław", "Gdańsk", "Poznań", "Łódź"] },
 };
 
+/** Street names and postcode shapes (# is a digit, A a capital) for generated addresses. */
+export const ADDRESS_PARTS: Record<CountryCode, { streets: readonly string[]; postcode: string; numberFirst: boolean }> = {
+  PT: { streets: ["Rua das Flores", "Avenida da Liberdade", "Rua do Sol", "Travessa do Mar", "Rua da Alegria", "Largo do Carmo"], postcode: "####-###", numberFirst: false },
+  ES: { streets: ["Calle Mayor", "Calle del Sol", "Avenida del Mar", "Calle de la Paz", "Paseo de la Luna", "Calle Nueva"], postcode: "#####", numberFirst: false },
+  FR: { streets: ["Rue de la Paix", "Rue des Lilas", "Avenue du Parc", "Rue du Moulin", "Rue de l'Église", "Allée des Tilleuls"], postcode: "#####", numberFirst: true },
+  DE: { streets: ["Hauptstraße", "Gartenweg", "Lindenallee", "Bergstraße", "Schulstraße", "Am Markt"], postcode: "#####", numberFirst: false },
+  NL: { streets: ["Dorpsstraat", "Kerkstraat", "Molenweg", "Stationsplein", "Schoolstraat", "Lindelaan"], postcode: "#### AA", numberFirst: false },
+  BE: { streets: ["Kerkstraat", "Rue de l'Église", "Stationsstraat", "Rue du Moulin", "Molenstraat", "Dorpsstraat"], postcode: "####", numberFirst: false },
+  IT: { streets: ["Via Roma", "Via Garibaldi", "Via Dante", "Corso Italia", "Via Verdi", "Via della Pace"], postcode: "#####", numberFirst: false },
+  IE: { streets: ["Main Street", "Church Road", "Station Road", "Park View", "Bridge Street", "Green Lane"], postcode: "A## A#A#", numberFirst: true },
+  AT: { streets: ["Hauptstraße", "Kirchengasse", "Bahnhofstraße", "Schulgasse", "Lindengasse", "Bergstraße"], postcode: "####", numberFirst: false },
+  DK: { streets: ["Storegade", "Skolevej", "Kirkevej", "Birkevej", "Havnegade", "Parkvej"], postcode: "####", numberFirst: false },
+  SE: { streets: ["Storgatan", "Skolgatan", "Kyrkogatan", "Parkvägen", "Björkvägen", "Hamngatan"], postcode: "### ##", numberFirst: false },
+  PL: { streets: ["ul. Kwiatowa", "ul. Lipowa", "ul. Polna", "ul. Leśna", "ul. Słoneczna", "ul. Krótka"], postcode: "##-###", numberFirst: false },
+};
+
 export interface ZoneRule {
   /** Flat shipping price, VAT included. */
   shippingCents: number;

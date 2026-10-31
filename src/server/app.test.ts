@@ -239,6 +239,8 @@ describe("GET /api/orders/:number", () => {
     expect(o.allowedTransitions).toEqual(["refunded"]);
     expect(o.customer.orderOrdinal).toBeGreaterThanOrEqual(1);
     expect(o.customer.orderOrdinal).toBeLessThanOrEqual(o.customer.ordersCount);
+    expect(o.customer.address.line.length).toBeGreaterThan(3);
+    expect(o.customer.address.postcode).toMatch(/^[\dA-Z -]+$/);
   });
 
   it("answers 404 for a number that does not exist and 400 for one that cannot", async () => {
@@ -445,6 +447,17 @@ describe("GET /api/stream/orders", () => {
 });
 
 describe("limits and admin", () => {
+  it("fails a write on request, without writing, so the UI can prove its rollback", async () => {
+    const id = await orderIn("shipped", 3);
+    const res = await raw(`/api/orders/${id}/status`, {
+      ...json({ status: "delivered" }, "PATCH"),
+      headers: { "content-type": "application/json", "x-simulate-failure": "1" },
+    });
+    expect(res).toMatchObject({ status: 500, body: { error: { code: "internal" } } });
+    const after = await (await api.orders[":number"].$get({ param: { number: String(id) } })).json();
+    expect(after.status).toBe("shipped");
+  });
+
   it("allows a set number of writes per minute, then answers 429", async () => {
     const strict = createApp({ getDbHandle: async () => handle, now: () => TEST_NOW, writesPerMinute: 2 });
     const id = await orderIn("shipped", 2);

@@ -127,6 +127,7 @@ export const orderDetail = orderRow.extend({
     ordersCount: z.number().int(),
     /** 1 for the customer's first order still on file, 2 for the second… */
     orderOrdinal: z.number().int(),
+    address: z.object({ line: z.string(), postcode: z.string() }),
   }),
   timeline: z.array(timelineEntry),
   allowedTransitions: z.array(z.enum(ORDER_STATUSES)),

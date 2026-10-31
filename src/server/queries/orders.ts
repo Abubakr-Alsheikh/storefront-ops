@@ -19,6 +19,7 @@ import {
   type OrderStatus,
   type PaymentMethod,
 } from "@/lib/domain";
+import { addressFor } from "@/lib/sim/customers";
 import { STORE_TIME_ZONE, dayNumberFromKey, startOfDayNumber } from "@/lib/tz";
 import { rows, type Db } from "../db/client";
 import { customers, orderEvents, orderItems, orders, simState } from "../db/schema";
@@ -295,6 +296,7 @@ export async function getOrder(db: Db, number: number): Promise<OrderDetail> {
       ...customer,
       country: customer.country as CountryCode,
       customerSince: iso(customer.customerSince),
+      address: addressFor(customer.id, customer.country as CountryCode),
     },
     timeline,
     allowedTransitions: [...ALLOWED_TRANSITIONS[status]],

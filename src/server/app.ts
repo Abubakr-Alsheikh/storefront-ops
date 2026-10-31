@@ -48,6 +48,8 @@ export function createApp(deps: AppDeps) {
 
   /** Counts a write against the caller's per-minute budget. */
   const limitWrites = createMiddleware<AppEnv>(async (c, next) => {
+    // Fails this one request, to prove the UI rolls back. Harmless: nothing is written.
+    if (c.req.header("x-simulate-failure")) throw new ApiError("internal", "Simulated failure.", 500);
     const wait = limiter.hit(clientKey(c), c.var.now);
     if (wait > 0) {
       c.header("Retry-After", String(wait));

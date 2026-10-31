@@ -1,4 +1,4 @@
-import { COUNTRIES, COUNTRY_CODES, type CountryCode } from "@/lib/data/countries";
+import { ADDRESS_PARTS, COUNTRIES, COUNTRY_CODES, type CountryCode } from "@/lib/data/countries";
 import { BLOCKED_NAMES, NAMES, emailSlug } from "@/lib/data/names";
 import { CUSTOMERS_PER_HOUR, CUSTOMER_EPOCH_HOUR, SIM_SEED } from "./config";
 import { rngFor, weightedPicker, type Rng } from "./prng";
@@ -51,6 +51,21 @@ export function newCustomerId(hour: number, n: number): number {
 /** The UTC hour in which customer `id` placed their first order. */
 export function firstOrderHour(id: number): number {
   return CUSTOMER_EPOCH_HOUR + Math.floor(id / CUSTOMERS_PER_HOUR);
+}
+
+/**
+ * A customer's street address, generated from their id on its own stream, so
+ * adding it changed no simulated history. Fictional, like the customers.
+ */
+export function addressFor(customerId: number, country: CountryCode): { line: string; postcode: string } {
+  const rng = rngFor(SIM_SEED, "address", customerId);
+  const parts = ADDRESS_PARTS[country];
+  const street = pickFrom(rng, parts.streets);
+  const number = 1 + Math.floor(rng() * 180);
+  const postcode = parts.postcode.replace(/[#A]/g, (c) =>
+    c === "#" ? String(Math.floor(rng() * 10)) : String.fromCharCode(65 + Math.floor(rng() * 26)),
+  );
+  return { line: parts.numberFirst ? `${number} ${street}` : `${street} ${number}`, postcode };
 }
 
 export function customerById(id: number): SimCustomer {
