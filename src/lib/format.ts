@@ -72,6 +72,11 @@ export function formatNumber(value: number): string {
 }
 
 /** A ratio as a percentage: 0.0243 → "2.4%". */
+/** Days of cover: tenths matter under ten days, where 0.2 and 0 mean different things. */
+export function formatCover(days: number): string {
+  return days < 10 ? days.toFixed(1) : formatNumber(Math.round(days));
+}
+
 export function formatPercent(ratio: number, digits = 1): string {
   return `${(ratio * 100).toFixed(digits)}%`.replace("-", MINUS);
 }

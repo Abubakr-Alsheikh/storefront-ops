@@ -18,6 +18,12 @@ export const PAYMENT_METHODS = ["card", "paypal", "mbway", "klarna", "apple_pay"
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 /** Columns the orders API can sort by (a whitelist; DATA.md §7). */
+export const INVENTORY_SORTS = ["cover", "product", "on_hand", "sold"] as const;
+export type InventorySort = (typeof INVENTORY_SORTS)[number];
+
+export const CUSTOMER_SORTS = ["lifetime", "orders", "last_order", "name"] as const;
+export type CustomerSort = (typeof CUSTOMER_SORTS)[number];
+
 export const ORDER_SORTS = ["placed", "number", "customer", "total", "items", "status", "country"] as const;
 export type OrderSort = (typeof ORDER_SORTS)[number];
 

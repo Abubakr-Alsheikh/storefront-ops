@@ -15,6 +15,17 @@ export const VELOCITY_WINDOW_DAYS = 14;
  */
 export const LOW_COVER_DAYS = 5;
 
+/** What a variant's stock and recent sales add up to; the API and the optimistic restock share it. */
+export function stockFigures(onHand: number, soldInWindow: number) {
+  const perDay = velocityPerDay(soldInWindow);
+  const cover = daysOfCover(onHand, perDay);
+  return {
+    onHand,
+    daysOfCover: cover === null ? null : Math.round(cover * 10) / 10,
+    state: stockState(onHand, perDay),
+  };
+}
+
 /** Average units sold per day over the window. */
 export function velocityPerDay(unitsInWindow: number, windowDays = VELOCITY_WINDOW_DAYS): number {
   return unitsInWindow / windowDays;

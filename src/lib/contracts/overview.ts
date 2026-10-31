@@ -70,7 +70,7 @@ export const overview = z.object({
       share: z.number(),
     }),
   ),
-  /** Variants under a week of cover or out of stock, for the callout. */
+  /** Variants in the "low" stock state: the same count as the inventory's Low stock filter. */
   lowStockVariants: z.number().int(),
   /** Data is complete up to this instant. */
   asOf: isoInstant,

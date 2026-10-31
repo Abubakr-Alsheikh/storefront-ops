@@ -262,6 +262,16 @@ describe("GET /api/inventory", () => {
   });
 });
 
+describe("the low-stock count", () => {
+  it("is the same on the overview as under the inventory's Low stock filter", async () => {
+    const overview = await (await api.overview.$get({ query: { range: "today" } })).json();
+    const low = await (await api.inventory.$get({ query: { state: "low" } })).json();
+    expect(overview.lowStockVariants).toBe(low.counts.low);
+    expect(overview.lowStockVariants).toBe(low.rows.length);
+    expect(low.collections.length).toBeGreaterThan(1);
+  });
+});
+
 describe("GET /api/customers", () => {
   it("gives each customer the segment segmentOf would", async () => {
     const page = await (await api.customers.$get({ query: { limit: "200", sort: "last_order", dir: "asc" } })).json();

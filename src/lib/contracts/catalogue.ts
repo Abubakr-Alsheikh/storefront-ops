@@ -1,14 +1,12 @@
 import { z } from "zod";
 import { COUNTRY_CODES } from "@/lib/data/countries";
-import { ORDER_STATUSES } from "@/lib/domain";
+import { CUSTOMER_SORTS, INVENTORY_SORTS, ORDER_STATUSES } from "@/lib/domain";
 import { SEGMENTS } from "@/lib/segments";
 import { STOCK_STATES } from "@/lib/stock";
 import { isoInstant, positiveIntParam, queryInt, querySearch, sortDir } from "./common";
 import { orderRow } from "./orders";
 
 // --- Inventory --------------------------------------------------------------
-
-export const INVENTORY_SORTS = ["cover", "product", "on_hand", "sold"] as const;
 
 export const inventoryQuery = z.object({
   q: querySearch,
@@ -41,6 +39,8 @@ export const inventoryList = z.object({
   rows: z.array(inventoryRow),
   /** Counts over the whole catalogue, unaffected by filters. */
   counts: z.object({ all: z.number().int(), low: z.number().int(), out: z.number().int() }),
+  /** Every collection, for the filter, whatever the current filters leave. */
+  collections: z.array(z.object({ id: z.string(), name: z.string() })),
 });
 export type InventoryList = z.infer<typeof inventoryList>;
 
@@ -51,8 +51,6 @@ export const restockBody = z.object({ quantity: z.number().int().min(1).max(REST
 export type RestockBody = z.infer<typeof restockBody>;
 
 // --- Customers --------------------------------------------------------------
-
-export const CUSTOMER_SORTS = ["lifetime", "orders", "last_order", "name"] as const;
 
 export const customersQuery = z.object({
   q: querySearch,

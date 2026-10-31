@@ -12,8 +12,7 @@ import {
   formatOrdinal,
   formatPercent,
   formatRelative,
-  formatTime,
-} from "./format";
+  formatTime, formatCover } from "./format";
 
 const utc = (iso: string) => Date.parse(iso);
 
@@ -95,5 +94,15 @@ describe("relative time", () => {
 
   it("switches to the date after a week", () => {
     expect(ago(10 * 86_400_000)).toBe("14 Oct");
+  });
+});
+
+describe("formatCover", () => {
+  it("keeps tenths under ten days and whole days above", () => {
+    expect(formatCover(0)).toBe("0.0");
+    expect(formatCover(0.2)).toBe("0.2");
+    expect(formatCover(9.94)).toBe("9.9");
+    expect(formatCover(10)).toBe("10");
+    expect(formatCover(1234.6)).toBe("1,235");
   });
 });

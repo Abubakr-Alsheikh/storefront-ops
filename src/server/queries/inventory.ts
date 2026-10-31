@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import type { InventoryList, InventoryQuery, InventoryRow } from "@/lib/contracts/catalogue";
 import { productById } from "@/lib/data/catalogue";
-import { VELOCITY_WINDOW_DAYS, daysOfCover, stockState, velocityPerDay } from "@/lib/stock";
+import { VELOCITY_WINDOW_DAYS, stockFigures } from "@/lib/stock";
 import { dayKeyFromNumber, zonedParts } from "@/lib/tz";
 import { rows, type Db } from "../db/client";
 import { notFound } from "../errors";
@@ -31,8 +31,6 @@ async function loadInventory(db: Db, now: number): Promise<InventoryRow[]> {
   );
   return list.map((v) => {
     const product = productById(v.product_id);
-    const perDay = velocityPerDay(v.sold);
-    const cover = daysOfCover(v.stock_on_hand, perDay);
     return {
       variantId: v.id,
       sku: v.sku,
@@ -42,10 +40,8 @@ async function loadInventory(db: Db, now: number): Promise<InventoryRow[]> {
       optionLabel: v.option_label,
       imageSlot: product?.imageSlot ?? "",
       priceCents: v.price_cents,
-      onHand: v.stock_on_hand,
       sold14Days: v.sold,
-      daysOfCover: cover === null ? null : Math.round(cover * 10) / 10,
-      state: stockState(v.stock_on_hand, perDay),
+      ...stockFigures(v.stock_on_hand, v.sold),
     };
   });
 }
@@ -75,12 +71,21 @@ export async function listInventory(db: Db, query: InventoryQuery, now: number):
   const sorter = SORTERS[query.sort];
   const sign = query.dir === "asc" ? 1 : -1;
   filtered.sort((a, b) => sign * sorter(a, b) || a.variantId - b.variantId);
-  return { rows: filtered, counts };
+  const collections = new Map<string, string>();
+  for (const r of all) {
+    const name = productById(r.productId)?.collectionName;
+    if (name) collections.set(r.collection, name);
+  }
+  return {
+    rows: filtered,
+    counts,
+    collections: [...collections].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, "en-GB")),
+  };
 }
 
-/** Variants that need attention, for the overview callout. */
+/** The overview's "running low" callout, which links to the Low stock filter: both must agree. */
 export async function countLowStock(db: Db, now: number): Promise<number> {
-  return (await loadInventory(db, now)).filter((r) => r.state !== "in_stock").length;
+  return (await loadInventory(db, now)).filter((r) => r.state === "low").length;
 }
 
 export async function restock(db: Db, sku: string, quantity: number, now: number): Promise<InventoryRow> {
