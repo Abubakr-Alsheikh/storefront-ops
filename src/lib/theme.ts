@@ -64,3 +64,36 @@ export function setSidebarCollapsed(collapsed: boolean) {
   write(SIDEBAR_KEY, collapsed ? "collapsed" : null);
   notify();
 }
+
+export const DENSITIES = ["comfortable", "compact"] as const;
+export type Density = (typeof DENSITIES)[number];
+
+const DENSITY_KEY = "storefront-density";
+
+export function getDensity(): Density {
+  return read(DENSITY_KEY) === "compact" ? "compact" : "comfortable";
+}
+
+export function setDensity(density: Density) {
+  write(DENSITY_KEY, density === "compact" ? density : null);
+  notify();
+}
+
+const HIDDEN_COLUMNS_KEY = "storefront-hidden-columns";
+let hiddenColumnsRaw: string | null = null;
+let hiddenColumns: readonly string[] = [];
+
+/** Stable while storage is unchanged, as useSyncExternalStore needs. */
+export function getHiddenColumns(): readonly string[] {
+  const raw = read(HIDDEN_COLUMNS_KEY);
+  if (raw !== hiddenColumnsRaw) {
+    hiddenColumnsRaw = raw;
+    hiddenColumns = raw ? raw.split(",") : [];
+  }
+  return hiddenColumns;
+}
+
+export function setHiddenColumns(columns: readonly string[]) {
+  write(HIDDEN_COLUMNS_KEY, columns.length ? columns.join(",") : null);
+  notify();
+}

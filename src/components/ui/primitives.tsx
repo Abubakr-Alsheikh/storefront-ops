@@ -71,7 +71,7 @@ export function Kbd({ className, ...props }: HTMLAttributes<HTMLElement>) {
 
 const FIELD = "h-8 w-full rounded-md border border-line-strong bg-surface-2 text-sm text-ink placeholder:text-ink-muted";
 
-export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
+export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement> & { ref?: Ref<HTMLInputElement> }) {
   return <input className={cx(FIELD, "px-2", className)} {...props} />;
 }
 

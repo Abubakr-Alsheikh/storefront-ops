@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
-import { EmptyState } from "@/components/ui/primitives";
-import { stubCopy } from "@/lib/data/copy/shell";
+import { Suspense } from "react";
+import { OrdersFallback, OrdersScreen } from "@/components/orders/OrdersScreen";
 
 export const metadata: Metadata = { title: "Orders" };
 
 export default function OrdersPage() {
-  return <EmptyState title={stubCopy.title}>{stubCopy.orders}</EmptyState>;
+  return (
+    <Suspense fallback={<OrdersFallback />}>
+      <OrdersScreen />
+    </Suspense>
+  );
 }

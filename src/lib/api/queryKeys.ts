@@ -12,5 +12,8 @@ export const queryKeys = {
   orders: {
     all: ["orders"] as const,
     latest: (limit: number) => ["orders", "latest", limit] as const,
+    page: (filters: unknown, upTo: number | undefined, pageIndex: number) =>
+      ["orders", "page", filters, upTo ?? null, pageIndex] as const,
+    grandTotal: ["orders", "grand-total"] as const,
   },
 };
