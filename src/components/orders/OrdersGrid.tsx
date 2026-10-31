@@ -137,9 +137,14 @@ const Row = memo(function Row({ index, start, height, order, visible, template, 
     return (
       <div role="row" aria-rowindex={index + 2} aria-busy="true" style={mobile ? style : { ...style, gridTemplateColumns: template }} className={cx(ROW_BASE, "bg-surface", !mobile && "grid")}>
         {mobile ? (
-          <div role="gridcell" className="flex h-full flex-col justify-center gap-2 px-4">
-            <div className="h-3.5 w-2/3 rounded bg-surface-2" />
-            <div className="h-3.5 w-1/3 rounded bg-surface-2" />
+          // Its own key: React must not reuse this block as the real card's content, or
+          // the browser counts the swap as a layout shift.
+          <div key="skeleton" role="gridcell" className="flex h-full items-center gap-3 px-4">
+            <div className="size-4 shrink-0 rounded bg-surface-2" />
+            <div className="min-w-0 flex-1">
+              <div className="h-3.5 w-2/3 rounded bg-surface-2" />
+              <div className="mt-2.5 h-3.5 w-1/3 rounded bg-surface-2" />
+            </div>
           </div>
         ) : (
           <>
@@ -182,7 +187,7 @@ const Row = memo(function Row({ index, start, height, order, visible, template, 
         onClick={() => onOpen(index, order.number)}
         className={cx(ROW_BASE, tone, "cursor-pointer")}
       >
-        <div role="gridcell" className="flex h-full items-center gap-3 px-4">
+        <div key="card" role="gridcell" className="flex h-full items-center gap-3 px-4">
           {checkbox}
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2">
