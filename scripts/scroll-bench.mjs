@@ -89,7 +89,7 @@ async function run(label, width, throttle) {
 
   await evaluate(`${GRID}.scrollTop = 0`);
   await until(rowsLoaded);
-  const before = await evaluate(`document.querySelector('[aria-live=polite]').textContent`);
+  const before = await evaluate(`document.querySelector('p[aria-live=polite]').textContent`);
   await evaluate(`(() => {
     window.__t0 = performance.now();
     const input = document.querySelector('input[type=search]');
@@ -98,9 +98,9 @@ async function run(label, width, throttle) {
     input.dispatchEvent(new Event('input', { bubbles: true }));
   })()`);
   // The 250 ms search debounce is not the query's fault; report it apart.
-  await until(`document.querySelector('[aria-live=polite]').textContent !== ${JSON.stringify(before)}`);
+  await until(`document.querySelector('p[aria-live=polite]').textContent !== ${JSON.stringify(before)}`);
   const ms = await evaluate("performance.now() - window.__t0");
-  console.log(`  search "sil": count updated ${Math.round(ms)} ms after typing (${Math.round(ms - 250)} ms after the 250 ms debounce):`, await evaluate(`document.querySelector('[aria-live=polite]').textContent`));
+  console.log(`  search "sil": count updated ${Math.round(ms)} ms after typing (${Math.round(ms - 250)} ms after the 250 ms debounce):`, await evaluate(`document.querySelector('p[aria-live=polite]').textContent`));
 }
 
 await run("1280 px", 1280, 1);
