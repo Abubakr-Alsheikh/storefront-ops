@@ -71,8 +71,16 @@ function BulkBar({ selected, onClear }: { selected: ReadonlyMap<number, OrderSta
 export function OrdersFallback() {
   return (
     <div className="flex h-[calc(100dvh-6.5rem)] min-h-96 flex-col gap-3">
-      <Skeleton className="h-8 w-full md:w-80" />
-      <Skeleton className="h-5 w-32" />
+      {/* The same rows as the real screen: search and filters, then the count line. */}
+      <div className="flex flex-col gap-2 md:flex-row md:items-center">
+        <Skeleton className="h-8 w-full shrink-0 md:w-80" />
+        <div className="py-0.5">
+          <Skeleton className="h-8 w-full max-w-md md:w-96" />
+        </div>
+      </div>
+      <div className="flex h-8 shrink-0 items-center">
+        <Skeleton className="h-5 w-32" />
+      </div>
       <div className="min-h-0 flex-1 rounded-md border border-line bg-surface" />
     </div>
   );
