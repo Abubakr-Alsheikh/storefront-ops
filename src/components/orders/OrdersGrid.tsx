@@ -77,11 +77,23 @@ function OrderNumber({ number }: { number: number }) {
   );
 }
 
-function renderCell(id: ColumnId, order: OrderRow) {
+function renderCell(id: ColumnId, order: OrderRow, index: number, onOpen: RowProps["onOpen"]) {
   switch (id) {
     case "number":
       return (
-        <Link href={`/orders/${order.number}`} prefetch={false} tabIndex={-1} onClick={(e) => e.stopPropagation()} className="rounded hover:underline">
+        // A real link, for opening in a new tab; a plain click goes through onOpen.
+        <Link
+          href={`/orders/${order.number}`}
+          prefetch={false}
+          tabIndex={-1}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (event.metaKey || event.ctrlKey || event.shiftKey) return;
+            event.preventDefault();
+            onOpen(index, order.number);
+          }}
+          className="rounded hover:underline"
+        >
           <OrderNumber number={order.number} />
         </Link>
       );
@@ -204,7 +216,7 @@ const Row = memo(function Row({ index, start, height, order, visible, template, 
           role="gridcell"
           className={cx(CELL, RIGHT_ALIGNED.has(id) && "justify-end", id === "status" && STICKY_RIGHT, id === "number" && STICKY_ORDER)}
         >
-          {renderCell(id, order)}
+          {renderCell(id, order, index, onOpen)}
         </div>
       ))}
     </div>
@@ -298,7 +310,8 @@ export function OrdersGrid({ total, getRow, ensureRange, resultKey, stale, sort,
   const openRow = useCallback(
     (index: number, number: number) => {
       setCursor(index);
-      router.push(`/orders/${number}`);
+      // The query string stays: it is the table's state, and the table stays mounted behind the panel.
+      router.push(`/orders/${number}${window.location.search}`);
     },
     [router],
   );
@@ -336,7 +349,7 @@ export function OrdersGrid({ total, getRow, ensureRange, resultKey, stale, sort,
     const order = getRow(cursor);
     if (event.key === "Enter" && order) {
       event.preventDefault();
-      router.push(`/orders/${order.number}`);
+      openRow(cursor, order.number);
     } else if (event.key === " " && order) {
       event.preventDefault();
       onToggle(order);

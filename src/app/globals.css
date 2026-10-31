@@ -128,6 +128,13 @@
   }
 }
 
+@keyframes panel-in {
+  from {
+    transform: translateX(32px);
+    opacity: 0;
+  }
+}
+
 @keyframes skeleton {
   50% {
     opacity: 0.5;

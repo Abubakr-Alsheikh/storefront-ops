@@ -46,7 +46,6 @@ export const STATUS_LABELS: Record<OrderStatus, string> = {
 /** Placeholders until each screen lands; every one of these goes away by M10. */
 export const stubCopy = {
   title: "This screen is next in the build.",
-  order: "Line items, totals and the status timeline land here.",
   inventory: "Stock on hand, days of cover and restocking land here.",
   customers: "Customers, segments and lifetime value land here.",
   customer: "This customer's profile and order history land here.",

@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { TopBar } from "@/components/shell/TopBar";
+import { Toaster } from "@/components/ui/Toaster";
 import { shellCopy } from "@/lib/data/copy/shell";
 
 export default function DashboardLayout({ children }: LayoutProps<"/">) {
@@ -26,6 +27,7 @@ export default function DashboardLayout({ children }: LayoutProps<"/">) {
           </main>
         </div>
       </div>
+      <Toaster />
     </>
   );
 }

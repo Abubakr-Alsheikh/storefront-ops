@@ -1,6 +1,6 @@
 "use client";
 
-import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import { useCallback, useRef, useState } from "react";
 import type { OrderRow, OrdersPage } from "@/lib/contracts/orders";
 import { ORDERS_PAGE_SIZE, type OrderSort } from "@/lib/domain";
@@ -107,35 +107,5 @@ export function useOrdersGrandTotal(enabled: boolean) {
     queryFn: ({ signal }) => unwrap(api.orders.$get({ query: { limit: "1" } }, { init: { signal } })),
     select: (page) => page.total,
     enabled,
-  });
-}
-
-/** Marks orders as shipped at once in every cached page, and undoes it on failure. */
-export function useBulkShip() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (numbers: number[]) => unwrap(api.orders.bulk.ship.$post({ json: { numbers } })),
-    onMutate: async (numbers) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.orders.all });
-      const snapshot = queryClient.getQueriesData<OrdersPage>({ queryKey: queryKeys.orders.all });
-      const chosen = new Set(numbers);
-      queryClient.setQueriesData<OrdersPage>({ queryKey: queryKeys.orders.all }, (page) =>
-        page?.rows
-          ? {
-              ...page,
-              rows: page.rows.map((row) =>
-                chosen.has(row.number) && (row.status === "paid" || row.status === "packed")
-                  ? { ...row, status: "shipped" as const }
-                  : row,
-              ),
-            }
-          : page,
-      );
-      return { snapshot };
-    },
-    onError: (_error, _numbers, context) => {
-      context?.snapshot.forEach(([key, value]) => queryClient.setQueryData(key, value));
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ["overview"] }),
   });
 }

@@ -15,5 +15,6 @@ export const queryKeys = {
     page: (filters: unknown, upTo: number | undefined, pageIndex: number) =>
       ["orders", "page", filters, upTo ?? null, pageIndex] as const,
     grandTotal: ["orders", "grand-total"] as const,
+    detail: (number: number) => ["orders", "detail", number] as const,
   },
 };

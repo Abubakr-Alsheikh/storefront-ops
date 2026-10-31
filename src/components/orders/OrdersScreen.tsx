@@ -4,7 +4,8 @@ import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import { LazyPopover } from "@/components/ui/LazyPopover";
 import { Button, EmptyState, Skeleton } from "@/components/ui/primitives";
 import { ApiClientError } from "@/lib/api/client";
-import { useBulkShip, useOrdersGrandTotal, useOrdersWindow } from "@/lib/api/ordersWindow";
+import { useBulkShip } from "@/lib/api/orderActions";
+import { useOrdersGrandTotal, useOrdersWindow } from "@/lib/api/ordersWindow";
 import type { OrderRow } from "@/lib/contracts/orders";
 import { cx } from "@/lib/cx";
 import { ERROR_MESSAGES, overviewCopy } from "@/lib/data/copy/overview";
@@ -49,7 +50,6 @@ function BulkBar({ selected, onClear }: { selected: ReadonlyMap<number, OrderSta
   const bulk = useBulkShip();
   const skipped = [...selected.values()].filter((s) => !SHIPPABLE_STATUSES.includes(s)).length;
   const tooMany = selected.size > BULK_MAX;
-  const code = bulk.error instanceof ApiClientError ? bulk.error.code : "internal";
   return (
     <div className="absolute inset-x-2 bottom-2 z-[4] flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-line bg-surface p-2 text-sm shadow-float">
       <span className="font-medium tabular-nums">{ordersCopy.selected(selected.size)}</span>
@@ -62,7 +62,7 @@ function BulkBar({ selected, onClear }: { selected: ReadonlyMap<number, OrderSta
       </Button>
       <Button variant="ghost" onClick={onClear}>{ordersCopy.clearSelection}</Button>
       <span role="status" className="min-w-0 text-xs text-ink-muted">
-        {bulk.isError ? ERROR_MESSAGES[code] : tooMany ? ordersCopy.tooMany : skipped ? ordersCopy.skipped(skipped) : null}
+        {tooMany ? ordersCopy.tooMany : skipped ? ordersCopy.skipped(skipped) : null}
       </span>
     </div>
   );
