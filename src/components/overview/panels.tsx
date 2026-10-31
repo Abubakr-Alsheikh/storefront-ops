@@ -1,14 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import type { ReactNode } from "react";
 import { Skeleton } from "@/components/ui/primitives";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { useLatestOrders } from "@/lib/api/hooks";
 import type { Overview } from "@/lib/contracts/overview";
 import { COUNTRIES } from "@/lib/data/countries";
 import { overviewCopy } from "@/lib/data/copy/overview";
-import { formatMoney, formatNumber, formatPercent, formatRelative } from "@/lib/format";
+import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 
 function Panel({ id, title, children, className }: { id: string; title: string; children: ReactNode; className?: string }) {
   return (
@@ -130,47 +128,5 @@ export function CountryTable({ overview }: { overview?: Overview }) {
         </table>
       )}
     </Panel>
-  );
-}
-
-const LATEST = 6;
-const ROW = "flex h-12 items-center justify-between gap-3 border-b border-line last:border-0";
-
-/** The newest orders; the live stream takes over this list in M9. */
-export function LiveOrders() {
-  const { data, dataUpdatedAt } = useLatestOrders(LATEST);
-  return (
-    <section aria-labelledby="live-title" className="flex min-w-0 flex-col rounded-md border border-line bg-surface p-4 xl:col-span-4 xl:p-5">
-      <h2 id="live-title" className="mb-3 flex h-8 items-center text-lg font-medium text-ink">{overviewCopy.live}</h2>
-      <div className="flex-1">
-        {!data ? (
-          <Skeletons count={LATEST} height="h-11" />
-        ) : data.rows.length === 0 ? (
-          <p className="text-sm text-ink-muted">{overviewCopy.liveEmpty}</p>
-        ) : (
-          <ul>
-            {data.rows.map((order) => (
-              <li key={order.number} className={ROW}>
-                <Link href={`/orders/${order.number}`} className="min-w-0 rounded text-sm hover:underline">
-                  <span className="block truncate text-ink">
-                    <span className="font-mono"><span className="text-ink-muted">#</span>{order.number}</span> · {order.customerName}
-                  </span>
-                  <span className="block truncate text-xs text-ink-muted">{order.city}, {COUNTRIES[order.country].name}</span>
-                </Link>
-                <span className="shrink-0 text-right tabular-nums">
-                  <span className="block text-sm text-ink">{formatMoney(order.totalCents)}</span>
-                  <span className="block text-xs text-ink-muted">
-                    {overviewCopy.items(order.itemCount)} · {formatRelative(Date.parse(order.placedAt), dataUpdatedAt)}
-                  </span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-      <Link href="/orders" className="mt-2 inline-flex h-5 w-fit items-center rounded text-sm font-medium text-accent hover:underline">
-        {overviewCopy.openOrders}
-      </Link>
-    </section>
   );
 }

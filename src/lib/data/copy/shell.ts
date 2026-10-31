@@ -34,6 +34,13 @@ export const LIVE_STATES = {
 } as const;
 export type LiveState = keyof typeof LIVE_STATES;
 
+/** What a screen reader hears from the feed; empty when nothing changed. */
+export function liveAnnouncement(state: LiveState | null, orders: number): string {
+  const parts: string[] = state ? [LIVE_STATES[state].detail] : [];
+  if (orders) parts.push(`${orders} new ${orders === 1 ? "order" : "orders"} in the last 30 seconds.`);
+  return parts.join(" ");
+}
+
 export const STATUS_LABELS: Record<OrderStatus, string> = {
   paid: "Paid",
   packed: "Packed",

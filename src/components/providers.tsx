@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { useState, type ReactNode } from "react";
+import { LiveFeedProvider } from "./LiveFeedProvider";
 
 /** One QueryClient per browser session (storefront-data §4). */
 function createQueryClient() {
@@ -24,7 +25,9 @@ export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(createQueryClient);
   return (
     <QueryClientProvider client={queryClient}>
-      <NuqsAdapter>{children}</NuqsAdapter>
+      <NuqsAdapter>
+        <LiveFeedProvider>{children}</LiveFeedProvider>
+      </NuqsAdapter>
     </QueryClientProvider>
   );
 }

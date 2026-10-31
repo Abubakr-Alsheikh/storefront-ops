@@ -22,7 +22,7 @@ export function TopBar() {
           <PageTitle />
         </Suspense>
       </div>
-      <LiveIndicator state="connecting" />
+      <LiveIndicator />
       <CommandButton />
       <ThemeToggle />
     </header>

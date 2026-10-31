@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
+import { useNewOrderCount } from "@/components/LiveFeedProvider";
 import { LazyPopover } from "@/components/ui/LazyPopover";
 import { Button, EmptyState, Skeleton } from "@/components/ui/primitives";
 import { ApiClientError } from "@/lib/api/client";
@@ -89,7 +90,15 @@ export function OrdersFallback() {
 export function OrdersScreen() {
   const filters = useOrderFilters();
   const { state, setState, query, hasFilters } = filters;
-  const { total, getRow, ensureRange, isPending, isStale, error, refetch } = useOrdersWindow(query);
+  const { total, newest, getRow, ensureRange, isPending, isStale, error, refetch } = useOrdersWindow(query);
+  // New orders only belong at the top of the unfiltered, newest-first list; anywhere else they wait.
+  const isDefaultView = !hasFilters && state.sort === "placed" && state.dir === "desc";
+  const newOrders = useNewOrderCount(isDefaultView ? newest : null);
+  const [shown, setShown] = useState(0);
+  const showNewOrders = async () => {
+    await refetch();
+    setShown((n) => n + 1);
+  };
   const grandTotal = useOrdersGrandTotal(hasFilters);
 
   const density = useSyncExternalStore(subscribePreferences, getDensity, () => "comfortable" as const);
@@ -109,7 +118,7 @@ export function OrdersScreen() {
   const onSort = useCallback((sort: OrderSort, dir: "asc" | "desc") => void setState({ sort, dir }), [setState]);
 
   const code = error instanceof ApiClientError ? error.code : "internal";
-  const resultKey = JSON.stringify(query);
+  const resultKey = `${JSON.stringify(query)}|${shown}`;
   const clear = () =>
     void setState({ status: null, country: null, payment: null, from: null, to: null, min: null, max: null, q: null });
 
@@ -121,6 +130,7 @@ export function OrdersScreen() {
           {total === undefined ? null : ordersCopy.count(total, hasFilters ? grandTotal.data : undefined)}
         </p>
         {hasFilters ? <Button variant="ghost" compact onClick={clear}>{ordersCopy.clearFilters}</Button> : null}
+        {newOrders > 0 ? <Button compact className="shrink-0 tabular-nums" onClick={() => void showNewOrders()}>{ordersCopy.newOrders(newOrders)}</Button> : null}
         <div className="ml-auto flex items-center gap-2 max-md:hidden">
           <div role="group" aria-label={ordersCopy.density.name} className="inline-flex h-8 gap-0.5 rounded-md bg-surface-2 p-0.5">
             {DENSITIES.map((option) => (

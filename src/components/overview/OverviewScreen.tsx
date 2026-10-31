@@ -10,7 +10,8 @@ import { ERROR_MESSAGES, overviewCopy } from "@/lib/data/copy/overview";
 import { formatKpiMoney, formatNumber, formatPercent } from "@/lib/format";
 import { completeSeries } from "@/lib/overviewSummary";
 import { KpiCard } from "./KpiCard";
-import { CountryTable, LiveOrders, StatusBreakdown, TopProducts } from "./panels";
+import { LiveOrders } from "./LiveOrders";
+import { CountryTable, StatusBreakdown, TopProducts } from "./panels";
 import { RangePicker, useRangeSelection } from "./RangePicker";
 import { RevenueCard } from "./RevenueCard";
 
@@ -102,7 +103,7 @@ function LiveSkeleton() {
   return (
     <section aria-hidden="true" className="flex min-w-0 flex-col rounded-md border border-line bg-surface p-4 xl:col-span-4 xl:p-5">
       <p className="mb-3 flex h-8 items-center text-lg font-medium text-ink">{overviewCopy.live}</p>
-      <div className="flex flex-1 flex-col gap-1">
+      <div className="flex h-72 flex-1 flex-col gap-1">
         {Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-11" />)}
       </div>
       <div className="mt-2 h-5" />

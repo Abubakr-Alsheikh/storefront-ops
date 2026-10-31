@@ -1,5 +1,8 @@
 import type { RangeKey } from "@/lib/ranges";
 
+/** Rows in the overview's live list, the one held back below the clip included. */
+export const LIVE_LIST_SIZE = 7;
+
 export interface RangeSelection {
   range: RangeKey;
   from?: string;
@@ -8,6 +11,7 @@ export interface RangeSelection {
 
 /** Every query key in one place, so updates and invalidations cannot drift. */
 export const queryKeys = {
+  overviewAll: ["overview"] as const,
   overview: (selection: RangeSelection) => ["overview", selection] as const,
   orders: {
     all: ["orders"] as const,

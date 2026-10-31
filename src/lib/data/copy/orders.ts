@@ -30,6 +30,7 @@ export const ordersCopy = {
     total === undefined || matching === total
       ? `${formatNumber(matching)} orders`
       : `${formatNumber(matching)} of ${formatNumber(total)} orders`,
+  newOrders: (n: number) => `${formatNumber(n)} new ${n === 1 ? "order" : "orders"} · Show`,
   emptyFilters: "No orders match these filters.",
   emptyFiltersHelp: "Widen the filters to see more of the order history.",
   emptySearch: (q: string) => `No orders match “${q}”.`,

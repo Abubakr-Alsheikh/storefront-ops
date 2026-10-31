@@ -90,6 +90,8 @@ export function useOrdersWindow(query: OrdersApiQuery) {
 
   return {
     total: first.data?.total,
+    /** The order this view is frozen at; anything newer waits for `refetch`. */
+    newest: first.data?.newest,
     getRow,
     ensureRange,
     isPending: first.isPending,

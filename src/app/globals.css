@@ -50,7 +50,7 @@
   --shadow-float: 0 12px 32px -12px rgb(15 17 19 / 0.28);
 
   --animate-skeleton: skeleton 1.2s ease-in-out infinite;
-  --animate-live-ring: live-ring 2s ease-out infinite;
+  --animate-live-ring: live-ring 2s ease-out both;
 }
 
 :root {

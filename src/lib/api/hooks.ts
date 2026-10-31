@@ -9,6 +9,7 @@ import { queryKeys, type RangeSelection } from "./queryKeys";
 const STALE_ANSWER_MS = 60_000;
 const RETRY_STALE_MS = 5_000;
 const REFRESH_MS = 60_000;
+const RELATIVE_TIME_TICK_MS = 30_000;
 
 export function useOverview(selection: RangeSelection) {
   return useQuery({
@@ -21,22 +22,34 @@ export function useOverview(selection: RangeSelection) {
         ),
       ),
     placeholderData: keepPreviousData,
+    // Every cache write restarts this timer, and the live feed writes often: ask
+    // for the time left since the last real answer, or a busy feed would starve it.
     refetchInterval: (query) => {
-      const data = query.state.data;
+      const { data, dataUpdatedAt } = query.state;
       if (!data) return false;
-      return query.state.dataUpdatedAt - Date.parse(data.asOf) > STALE_ANSWER_MS ? RETRY_STALE_MS : REFRESH_MS;
+      if (dataUpdatedAt - Date.parse(data.asOf) > STALE_ANSWER_MS) return RETRY_STALE_MS;
+      return Math.max(RETRY_STALE_MS, dataUpdatedAt + REFRESH_MS - Date.now());
     },
   });
 }
 
-/** The newest orders. M9 feeds this list from the live stream; until then it refreshes. */
+/** The newest orders. The live feed writes new ones straight into this query. */
 export function useLatestOrders(limit: number) {
   return useQuery({
     queryKey: queryKeys.orders.latest(limit),
     queryFn: ({ signal }) =>
       unwrap(api.orders.$get({ query: { limit: String(limit) } }, { init: { signal } })),
-    refetchInterval: 30_000,
   });
+}
+
+/** The clock, for "2 min ago" labels that must not freeze between orders. */
+export function useNow(): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), RELATIVE_TIME_TICK_MS);
+    return () => clearInterval(timer);
+  }, []);
+  return now;
 }
 
 /** True once `active` has lasted over 1.5 s, for the cold-start hint. */
