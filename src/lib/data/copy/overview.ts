@@ -36,6 +36,7 @@ export const overviewCopy = {
   openOrders: "Open all orders",
   reviewInventory: "Review inventory",
   noData: "No orders in this range.",
+  errorHelp: "This screen failed to draw. The rest of the dashboard still works.",
   lowStock: (n: number) => `${n} ${n === 1 ? "SKU is" : "SKUs are"} running low`,
   items: (n: number) => `${n} ${n === 1 ? "item" : "items"}`,
   retry: "Try again",

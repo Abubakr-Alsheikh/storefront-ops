@@ -10,6 +10,7 @@ import { SearchBox } from "@/components/ui/SearchBox";
 import { StockBadge } from "@/components/ui/StatusBadge";
 import { ApiClientError } from "@/lib/api/client";
 import { useInventory, useRestock, type InventoryApiQuery } from "@/lib/api/catalogue";
+import { useSlowHint } from "@/lib/api/hooks";
 import type { InventoryRow } from "@/lib/contracts/catalogue";
 import { STOCK_LABELS, inventoryCopy } from "@/lib/data/copy/catalogue";
 import { ERROR_MESSAGES, overviewCopy } from "@/lib/data/copy/overview";
@@ -120,7 +121,8 @@ export function InventoryScreen() {
     if (state.dir !== "asc") out.dir = state.dir;
     return out;
   }, [state]);
-  const { data, error, refetch, isPlaceholderData } = useInventory(query);
+  const { data, error, refetch, isPending, isPlaceholderData } = useInventory(query);
+  const slow = useSlowHint(isPending);
   const restock = useRestock();
   const density = useSyncExternalStore(subscribePreferences, getDensity, () => "comfortable" as const);
   const grid = useRef<HTMLDivElement>(null);
@@ -155,7 +157,7 @@ export function InventoryScreen() {
       </div>
       <div className="flex h-8 shrink-0 items-center gap-3">
         <p aria-live="polite" className="min-w-0 truncate text-sm text-ink-muted tabular-nums">
-          {data ? inventoryCopy.count(data.rows.length, data.counts.all) : null}
+          {data ? inventoryCopy.count(data.rows.length, data.counts.all) : slow ? overviewCopy.waking : null}
         </p>
         {hasFilters ? <Button variant="ghost" compact onClick={clear}>{ordersCopy.clearFilters}</Button> : null}
       </div>

@@ -7,8 +7,14 @@ export const shellCopy = {
   skipLink: "Skip to content",
   search: "Search or jump to…",
   searchShort: "Search",
-  noPages: "No pages match.",
   pagesGroup: "Pages",
+  recentGroup: "Recent",
+  ordersGroup: "Orders",
+  customersGroup: "Customers",
+  productsGroup: "Products",
+  searching: "Searching…",
+  noResults: (q: string) => `Nothing matches “${q}”.`,
+  shortcutsTitle: "Keyboard shortcuts",
   theme: "Theme",
   themes: { light: "Light", dark: "Dark", system: "System" },
   primaryNav: "Primary",
@@ -50,8 +56,18 @@ export const STATUS_LABELS: Record<OrderStatus, string> = {
   refunded: "Refunded",
 };
 
-/** The placeholder until Settings lands in M11. */
-export const stubCopy = {
-  title: "This screen is next in the build.",
-  settings: "Theme, table density and the demo reset explainer land here.",
-} as const;
+export const notFoundCopy = {
+  title: "This page does not exist.",
+  help: "The link may be old, or the address mistyped.",
+  back: "Back to overview",
+};
+
+export const SHORTCUTS: readonly { keys: readonly string[]; action: string }[] = [
+  { keys: ["Ctrl", "K"], action: "Search or jump to a page" },
+  { keys: ["/"], action: "Search this list" },
+  { keys: ["↑", "↓"], action: "Move through a table" },
+  { keys: ["Enter"], action: "Open the highlighted row" },
+  { keys: ["Space"], action: "Select the highlighted order" },
+  { keys: ["Esc"], action: "Close a dialog or clear the selection" },
+  { keys: ["?"], action: "Show these shortcuts" },
+];

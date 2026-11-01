@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { OrdersGrid } from "@/components/orders/OrdersGrid";
 import { Button, EmptyState, Skeleton } from "@/components/ui/primitives";
 import { SegmentBadge } from "@/components/ui/StatusBadge";
@@ -15,6 +15,7 @@ import { ERROR_MESSAGES, overviewCopy } from "@/lib/data/copy/overview";
 import type { OrderSort } from "@/lib/domain";
 import { formatMoney, formatNumber } from "@/lib/format";
 import { compareOrders } from "@/lib/orderSort";
+import { rememberRecent } from "@/lib/recent";
 import { getDensity, subscribePreferences } from "@/lib/theme";
 import { site } from "@/lib/site";
 
@@ -68,6 +69,12 @@ function CustomerOrders({ orders }: { orders: OrderRow[] }) {
 
 export function CustomerDetailView({ id }: { id: number }) {
   const { data: customer, error, refetch, isFetching } = useCustomer(id);
+  const name = customer?.name;
+  const country = customer ? COUNTRIES[customer.country].name : undefined;
+
+  useEffect(() => {
+    if (name && country) rememberRecent({ kind: "customer", href: `/customers/${id}`, label: name, detail: country });
+  }, [id, name, country]);
 
   if (!customer) {
     if (error) {

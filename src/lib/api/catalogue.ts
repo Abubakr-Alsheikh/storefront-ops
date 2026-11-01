@@ -112,7 +112,7 @@ export function useCustomersWindow(query: CustomersApiQuery) {
     }, RANGE_SETTLE_MS);
   }, []);
 
-  return { total: first.data?.total, getRow, onRange, isStale: first.isPlaceholderData, error: first.error, refetch: first.refetch };
+  return { total: first.data?.total, getRow, onRange, isPending: first.isPending, isStale: first.isPlaceholderData, error: first.error, refetch: first.refetch };
 }
 
 export function useCustomer(id: number) {

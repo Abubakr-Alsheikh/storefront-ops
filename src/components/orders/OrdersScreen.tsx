@@ -5,6 +5,7 @@ import { useNewOrderCount } from "@/components/LiveFeedProvider";
 import { LazyPopover } from "@/components/ui/LazyPopover";
 import { Button, EmptyState, Skeleton } from "@/components/ui/primitives";
 import { ApiClientError } from "@/lib/api/client";
+import { useSlowHint } from "@/lib/api/hooks";
 import { useBulkShip } from "@/lib/api/orderActions";
 import { useOrdersGrandTotal, useOrdersWindow } from "@/lib/api/ordersWindow";
 import type { OrderRow } from "@/lib/contracts/orders";
@@ -100,6 +101,7 @@ export function OrdersScreen() {
     setShown((n) => n + 1);
   };
   const grandTotal = useOrdersGrandTotal(hasFilters);
+  const slow = useSlowHint(isPending);
 
   const density = useSyncExternalStore(subscribePreferences, getDensity, () => "comfortable" as const);
   const hidden = useSyncExternalStore(subscribePreferences, getHiddenColumns, () => NONE);
@@ -126,7 +128,8 @@ export function OrdersScreen() {
       <FilterBar filters={filters} />
       <div className="flex h-8 shrink-0 items-center gap-3">
         <p aria-live="polite" className="min-w-0 truncate text-sm text-ink-muted tabular-nums">
-          {total === undefined ? null : ordersCopy.count(total, hasFilters ? grandTotal.data : undefined)}
+          {/* While a new filter loads, `total` is the old answer: "of" would compare it with the wrong thing. */}
+          {total === undefined ? (slow ? overviewCopy.waking : null) : ordersCopy.count(total, hasFilters && !isStale ? grandTotal.data : undefined)}
         </p>
         {hasFilters ? <Button variant="ghost" compact onClick={clear}>{ordersCopy.clearFilters}</Button> : null}
         {newOrders > 0 ? <Button compact className="shrink-0 tabular-nums" onClick={() => void showNewOrders()}>{ordersCopy.newOrders(newOrders)}</Button> : null}

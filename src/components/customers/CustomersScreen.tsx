@@ -11,6 +11,7 @@ import { SearchBox } from "@/components/ui/SearchBox";
 import { SegmentBadge } from "@/components/ui/StatusBadge";
 import { ApiClientError } from "@/lib/api/client";
 import { useCustomersWindow, type CustomersApiQuery } from "@/lib/api/catalogue";
+import { useSlowHint } from "@/lib/api/hooks";
 import type { CustomerRow } from "@/lib/contracts/catalogue";
 import { COUNTRIES } from "@/lib/data/countries";
 import { SEGMENT_HELP, SEGMENT_LABELS, customersCopy } from "@/lib/data/copy/catalogue";
@@ -94,7 +95,8 @@ export function CustomersScreen() {
     if (state.dir !== "desc") out.dir = state.dir;
     return out;
   }, [state]);
-  const { total, getRow, onRange, isStale, error, refetch } = useCustomersWindow(query);
+  const { total, getRow, onRange, isPending, isStale, error, refetch } = useCustomersWindow(query);
+  const slow = useSlowHint(isPending);
   const density = useSyncExternalStore(subscribePreferences, getDensity, () => "comfortable" as const);
   const router = useRouter();
   const open = useCallback((row: CustomerRow) => router.push(`/customers/${row.id}`), [router]);
@@ -111,7 +113,7 @@ export function CustomersScreen() {
       </div>
       <div className="flex h-8 shrink-0 items-center gap-3">
         <p aria-live="polite" className="min-w-0 truncate text-sm text-ink-muted tabular-nums">
-          {total === undefined ? null : customersCopy.count(total)}
+          {total === undefined ? (slow ? overviewCopy.waking : null) : customersCopy.count(total)}
           {state.segment ? <span className="max-md:hidden"> · {SEGMENT_HELP[state.segment]}</span> : null}
         </p>
         {hasFilters ? <Button variant="ghost" compact onClick={clear}>{ordersCopy.clearFilters}</Button> : null}

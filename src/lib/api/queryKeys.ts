@@ -13,6 +13,7 @@ export interface RangeSelection {
 export const queryKeys = {
   overviewAll: ["overview"] as const,
   overview: (selection: RangeSelection) => ["overview", selection] as const,
+  search: (q: string) => ["search", q] as const,
   inventory: {
     all: ["inventory"] as const,
     list: (query: unknown) => ["inventory", "list", query] as const,

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Dialog, DialogClose, DialogContent, DialogTrigger } from "@/components/ui/overlays";
 import { Button, EmptyState, Skeleton } from "@/components/ui/primitives";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -14,6 +14,7 @@ import { PAYMENT_LABELS } from "@/lib/data/copy/orders";
 import { ERROR_MESSAGES, overviewCopy } from "@/lib/data/copy/overview";
 import type { OrderStatus } from "@/lib/domain";
 import { formatDateTime, formatMoney, formatOrdinal, formatRelative } from "@/lib/format";
+import { rememberRecent } from "@/lib/recent";
 
 const NOTE_MAX = 280;
 
@@ -201,6 +202,11 @@ function DetailSkeleton() {
 /** The whole order; the side panel and the full page both render this. */
 export function OrderDetailView({ number, titleId }: { number: number; titleId?: string }) {
   const { data: order, error, refetch, isFetching, dataUpdatedAt } = useOrder(number);
+  const customerName = order?.customer.name;
+
+  useEffect(() => {
+    if (customerName) rememberRecent({ kind: "order", href: `/orders/${number}`, label: `#${number}`, detail: customerName });
+  }, [number, customerName]);
 
   if (!order) {
     if (error) {
